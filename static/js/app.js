@@ -74,22 +74,26 @@ function toggleTheme() {
 // ============================================================
 function updateDynamicGreeting() {
   const hour = new Date().getHours();
-  let timeTag = 'Pagi Hari';
-  let title = 'Selamat Pagi, Kak!';
-  let sub = 'Ada peralatan rumah tangga yang perlu disiapkan atau dipinjam hari ini?';
+  let timeTag = 'Gudang Utama RT';
+  let title = 'Halo Andrian • Gudang Utama RT';
+  let sub = 'Sistem inventaris & peminjaman perkakas warga mandiri. Cek fisik alat sebelum serah terima.';
 
   if (hour >= 11 && hour < 15) {
-    timeTag = 'Siang Hari';
-    title = 'Selamat Siang, Kak!';
-    sub = 'Pastikan cek kesiapan fisik & keamanan alat sebelum dipinjamkan ya.';
+    timeTag = 'Shift Siang • Operasional';
+    title = 'Halo Andrian • Gudang Utama RT';
+    sub = 'Shift siang aktif. Pantau perkakas yang sedang digunakan di lapangan dan cek kelayakan fisik.';
   } else if (hour >= 15 && hour < 18) {
-    timeTag = 'Sore Hari';
-    title = 'Selamat Sore, Kak!';
-    sub = 'Waktu yang tepat untuk merapikan dan cek pengembalian alat gudang.';
+    timeTag = 'Shift Sore • Pengembalian';
+    title = 'Halo Andrian • Gudang Utama RT';
+    sub = 'Waktu pengecekan pengembalian alat warga. Pastikan kabel rapi dan perkakas kembali bersih.';
   } else if (hour >= 18 || hour < 4) {
-    timeTag = 'Malam Hari';
-    title = 'Selamat Malam, Kak!';
-    sub = 'Semua catatan inventaris dan rekaman keamanan tersimpan aman.';
+    timeTag = 'Standby Malam • Inventaris Terkunci';
+    title = 'Halo Andrian • Gudang Utama RT';
+    sub = 'Peralatan tersimpan rapi di rak inventaris. Log peminjaman dan rekam triase risiko aktif.';
+  } else {
+    timeTag = 'Shift Pagi • Kesiapan Alat';
+    title = 'Halo Andrian • Gudang Utama RT';
+    sub = 'Gudang siap melayani peminjaman alat pertukangan dan kebersihan lingkungan warga.';
   }
 
   const timeTagEl = document.getElementById('greeting-time-tag');
@@ -442,15 +446,13 @@ function renderBeranda() {
     container.innerHTML = `
       <div class="empty-state-card">
         <div class="empty-state-icon-wrap">
-          <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
-            <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
-            <line x1="12" y1="22.08" x2="12" y2="12"></line>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path>
           </svg>
         </div>
-        <div class="empty-state-title">Gudang Masih Bersih & Siap Diisi</div>
+        <div class="empty-state-title">Rak Gudang Masih Kosong</div>
         <div class="empty-state-desc">
-          Belum ada perkakas di GudangLingling. Yuk, mulai catat alat pertamamu dengan menekan tombol <strong>+ Tambah Alat Baru</strong>!
+          Belum ada perkakas yang terdaftar di inventaris. Mulai catat alat pertamamu dengan menekan tombol di bawah:
         </div>
         <button class="btn-act btn-primary-action empty-state-cta" style="width:auto;" onclick="openAddItemModal()">
           <span>+ Tambah Alat Baru</span>
@@ -463,7 +465,7 @@ function renderBeranda() {
     container.innerHTML = `
       <div class="empty-state-card">
         <div class="empty-state-icon-wrap" style="color:var(--text-muted);background:var(--bg-subtle);border-color:var(--border-subtle);">
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="11" cy="11" r="8"></circle>
             <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
           </svg>
