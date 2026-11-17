@@ -8,7 +8,7 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32x32.png">
   <link rel="icon" type="image/png" sizes="64x64" href="/img/favicon-64x64.png">
   <link rel="apple-touch-icon" href="/img/logo-emblem.png">
-  <link rel="stylesheet" href="/css/style.css?v=8.6">
+  <link rel="stylesheet" href="/css/style.css?v=1.0.0">
 </head>
 <body>
 
@@ -913,9 +913,34 @@
   </div>
 </div>
 
+<!-- ==================== MODAL UPDATE VERSI GITHUB (CLEAN & MINIMAL) ==================== -->
+<div class="modal-overlay" id="modal-version-update" style="z-index:10060;">
+  <div class="modal-dialog" style="max-width:360px;">
+    <div class="modal-dialog-header">
+      <strong style="font-size:14px;">Pembaruan Tersedia</strong>
+      <button type="button" class="btn-drawer" onclick="skipVersionUpdate()">&times;</button>
+    </div>
+    <div class="modal-dialog-body" style="text-align:center;padding:18px 16px;">
+      <div id="version-update-badge" style="display:inline-block;padding:4px 10px;border-radius:20px;background:var(--primary-subtle);color:var(--primary);font-size:11.5px;font-weight:700;margin-bottom:10px;">
+        v1.0.0 &rarr; v1.0.1
+      </div>
+      <div style="font-size:13px;color:var(--text-primary);font-weight:600;margin-bottom:6px;">
+        Versi baru GudangLingling tersedia di GitHub.
+      </div>
+      <div style="font-size:11.5px;color:var(--text-secondary);line-height:1.45;margin-bottom:16px;">
+        Data inventaris, riwayat peminjaman, dan foto dijamin tetap aman.
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button type="button" class="btn-act btn-subtle-action" onclick="skipVersionUpdate()">Lewati</button>
+        <button type="button" id="btn-apply-update" class="btn-act btn-primary-action" onclick="applyVersionUpdate()">Update Sekarang</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ==================== TOAST NOTIFICATION CONTAINER ==================== -->
 <div class="app-toast" id="app-toast"></div>
 
-<script src="/js/app.js?v=8.6"></script>
+<script src="/js/app.js?v=1.0.0"></script>
 </body>
 </html>

@@ -366,8 +366,78 @@ function enterOperationalSession(operatorName, displayName) {
   }
   updateHeaderStatus();
   loadAllData();
+  checkAppVersionUpdate();
   if (chatDrawerBody && chatDrawerBody.children.length === 0) {
     startChatSession();
+  }
+}
+
+let latestDetectedTag = '';
+
+async function checkAppVersionUpdate() {
+  try {
+    const res = await fetch('/api/version-check');
+    const data = await res.json();
+    if (!data || !data.update_available || !data.latest_version) return;
+
+    const skipped = localStorage.getItem('gl_skipped_version');
+    if (skipped === data.latest_version) return;
+
+    latestDetectedTag = data.latest_tag || data.latest_version;
+    const badge = document.getElementById('version-update-badge');
+    if (badge) {
+      badge.innerHTML = `v${esc(data.current_version)} &rarr; v${esc(data.latest_version)}`;
+    }
+    const modal = document.getElementById('modal-version-update');
+    if (modal) modal.classList.add('open');
+  } catch (err) {
+    // Silent fail if offline
+  }
+}
+
+function skipVersionUpdate() {
+  if (latestDetectedTag) {
+    localStorage.setItem('gl_skipped_version', latestDetectedTag.replace(/^v/i, ''));
+  }
+  const modal = document.getElementById('modal-version-update');
+  if (modal) modal.classList.remove('open');
+}
+
+async function applyVersionUpdate() {
+  const btn = document.getElementById('btn-apply-update');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Memperbarui...';
+  }
+  try {
+    const res = await fetch('/api/version-update', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tag: latestDetectedTag })
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      showToast(data.error || 'Gagal memperbarui versi.', 'warn');
+      if (btn) { btn.disabled = false; btn.textContent = 'Update Sekarang'; }
+      return;
+    }
+
+    localStorage.removeItem('gl_skipped_version');
+    if (btn) btn.textContent = 'Memuat Ulang...';
+
+    // Poll /api/health until restarted container is ready, then reload browser
+    const waitAndReload = setInterval(async () => {
+      try {
+        const h = await fetch('/api/health');
+        if (h.ok) {
+          clearInterval(waitAndReload);
+          window.location.reload(true);
+        }
+      } catch (_) {}
+    }, 800);
+  } catch (err) {
+    showToast('Gagal menghubungi server update.', 'warn');
+    if (btn) { btn.disabled = false; btn.textContent = 'Update Sekarang'; }
   }
 }
 

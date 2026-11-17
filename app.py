@@ -10,11 +10,15 @@ Program Studi: Teknik Komputer - ITEBA
 
 import sys
 import os
+import io
 import time
 import json
 import uuid
 import base64
+import tarfile
+import threading
 import mimetypes
+import urllib.request
 from pathlib import Path
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, quote
@@ -58,6 +62,86 @@ ACTIVE_SESSIONS = {}
 LOGIN_ATTEMPTS = {}
 MAX_LOGIN_ATTEMPTS = 3
 LOCKOUT_SECONDS = 120
+
+# Cache pengecekan tag GitHub
+VERSION_CACHE = {"checked_at": 0.0, "data": None}
+
+
+def _parse_semver(tag_str: str):
+    clean = (tag_str or "").strip().lstrip("vV")
+    parts = []
+    for p in clean.split("."):
+        num = "".join(ch for ch in p if ch.isdigit())
+        parts.append(int(num) if num else 0)
+    while len(parts) < 3:
+        parts.append(0)
+    return tuple(parts[:3])
+
+
+def check_github_latest_tag(force: bool = False):
+    now = time.time()
+    if not force and VERSION_CACHE["data"] and (now - VERSION_CACHE["checked_at"]) < 300:
+        return VERSION_CACHE["data"]
+
+    current = getattr(config, "APP_VERSION", "1.0.0")
+    repo = getattr(config, "GITHUB_REPO", "Loraxsian/Gudanglingling")
+    result = {
+        "current_version": current,
+        "latest_version": current,
+        "latest_tag": current,
+        "update_available": False
+    }
+    try:
+        req = urllib.request.Request(
+            f"https://api.github.com/repos/{repo}/tags?per_page=10",
+            headers={"User-Agent": "GudangLingling-Updater/1.0", "Accept": "application/vnd.github+json"}
+        )
+        with urllib.request.urlopen(req, timeout=4) as resp:
+            tags = json.loads(resp.read().decode("utf-8"))
+            if isinstance(tags, list) and tags:
+                best_tag = max(tags, key=lambda t: _parse_semver(t.get("name", "0.0.0")))
+                tag_name = best_tag.get("name", current)
+                clean_latest = tag_name.lstrip("vV")
+                is_newer = _parse_semver(tag_name) > _parse_semver(current)
+                result = {
+                    "current_version": current,
+                    "latest_version": clean_latest,
+                    "latest_tag": tag_name,
+                    "update_available": is_newer
+                }
+    except Exception:
+        pass
+
+    VERSION_CACHE["checked_at"] = now
+    VERSION_CACHE["data"] = result
+    return result
+
+
+def apply_github_tag_update(tag_name: str):
+    repo = getattr(config, "GITHUB_REPO", "Loraxsian/Gudanglingling")
+    tar_url = f"https://github.com/{repo}/archive/refs/tags/{tag_name}.tar.gz"
+    req = urllib.request.Request(tar_url, headers={"User-Agent": "GudangLingling-Updater/1.0"})
+    with urllib.request.urlopen(req, timeout=20) as resp:
+        raw_bytes = resp.read()
+
+    protected_prefixes = ("database/gudanglingling.db", "static/uploads/", ".git/")
+    with tarfile.open(fileobj=io.BytesIO(raw_bytes), mode="r:gz") as tf:
+        for member in tf.getmembers():
+            if not member.isfile():
+                continue
+            parts = member.name.split("/", 1)
+            if len(parts) < 2 or not parts[1]:
+                continue
+            rel_path = parts[1]
+            if any(rel_path.startswith(p) or rel_path == p.rstrip("/") for p in protected_prefixes):
+                continue
+            dest_path = BASE_DIR / rel_path
+            dest_path.parent.mkdir(parents=True, exist_ok=True)
+            extracted = tf.extractfile(member)
+            if extracted:
+                dest_path.write_bytes(extracted.read())
+    VERSION_CACHE["checked_at"] = 0.0
+    VERSION_CACHE["data"] = None
 
 
 def validate_borrow_duration(item, borrow_days: int):
@@ -171,6 +255,12 @@ class GudangLinglingRequestHandler(BaseHTTPRequestHandler):
         # 1B. API: Cek Status Password Default (Login Page Note)
         if path == "/api/auth/status":
             self._send_json(get_auth_status())
+            return
+
+        # 1C. API: Cek Tag Versi Terbaru di GitHub
+        if path == "/api/version-check":
+            force = "force=1" in (parsed.query or "")
+            self._send_json(check_github_latest_tag(force=force))
             return
 
         # 2. API: Daftar Peralatan
@@ -399,6 +489,25 @@ class GudangLinglingRequestHandler(BaseHTTPRequestHandler):
                 }, 200)
             else:
                 self._send_json({"error": "Akun pengurus tidak ditemukan."}, 404)
+            return
+
+        # 1D. API: Terapkan Update Tag GitHub (Aman Tanpa Menghapus Data)
+        if path == "/api/version-update":
+            info = check_github_latest_tag(force=True)
+            target_tag = body.get("tag") or info.get("latest_tag")
+            if not target_tag or not info.get("update_available"):
+                self._send_json({"success": False, "error": "Tidak ada versi terbaru yang perlu diterapkan."}, 400)
+                return
+            try:
+                apply_github_tag_update(target_tag)
+                self._send_json({
+                    "success": True,
+                    "version": target_tag.lstrip("vV"),
+                    "message": "Update berhasil diunduh. Memulai ulang server..."
+                }, 200)
+                threading.Timer(0.5, lambda: os._exit(0)).start()
+            except Exception as e:
+                self._send_json({"success": False, "error": f"Gagal mengunduh update: {e}"}, 500)
             return
 
         # 2. API: Unggah Foto Kamera HP (Base64 -> Local File)
