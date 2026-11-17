@@ -11,6 +11,8 @@ const state = {
   reminders: [],
   emailLogs: [],
   selectedItem: null,
+  activeCategory: 'ALL',
+  activeKeyword: '',
   borrowerName: "Peminjam",
   borrowerPhone: "",
   days: 1,
@@ -33,13 +35,71 @@ document.addEventListener('DOMContentLoaded', () => {
   setupNavigation();
   setupDraggableBubble();
   setupChatDrawer();
+  updateDynamicGreeting();
   loadAllData();
   startChatSession();
 });
 
 // ============================================================
-// 1. NAVIGATION (Beranda, Message, FaQ)
+// 1. NAVIGATION & DYNAMIC GREETING
 // ============================================================
+function updateDynamicGreeting() {
+  const hour = new Date().getHours();
+  let timeTag = 'Pagi Hari';
+  let title = 'Selamat Pagi, Kak!';
+  let sub = 'Ada peralatan rumah tangga yang perlu disiapkan atau dipinjam hari ini?';
+
+  if (hour >= 11 && hour < 15) {
+    timeTag = 'Siang Hari';
+    title = 'Selamat Siang, Kak!';
+    sub = 'Pastikan cek kesiapan fisik & keamanan alat sebelum dipinjamkan ya.';
+  } else if (hour >= 15 && hour < 18) {
+    timeTag = 'Sore Hari';
+    title = 'Selamat Sore, Kak!';
+    sub = 'Waktu yang tepat untuk merapikan dan cek pengembalian alat gudang.';
+  } else if (hour >= 18 || hour < 4) {
+    timeTag = 'Malam Hari';
+    title = 'Selamat Malam, Kak!';
+    sub = 'Semua catatan inventaris dan rekaman keamanan tersimpan aman.';
+  }
+
+  const timeTagEl = document.getElementById('greeting-time-tag');
+  const titleEl = document.getElementById('greeting-text');
+  const subEl = document.getElementById('greeting-sub');
+
+  if (timeTagEl) timeTagEl.textContent = timeTag;
+  if (titleEl) titleEl.textContent = title;
+  if (subEl) subEl.textContent = sub;
+}
+
+function clearSearch() {
+  const input = document.getElementById('search-input');
+  if (input) input.value = '';
+  const clearBtn = document.getElementById('search-clear-btn');
+  if (clearBtn) clearBtn.style.display = 'none';
+  document.querySelectorAll('.quick-chip').forEach(c => c.classList.remove('active'));
+  state.activeKeyword = '';
+  renderBeranda();
+}
+
+function applyQuickKeyword(kw) {
+  const input = document.getElementById('search-input');
+  const clearBtn = document.getElementById('search-clear-btn');
+  if (!input) return;
+
+  if (input.value.toLowerCase() === kw.toLowerCase()) {
+    clearSearch();
+    return;
+  }
+
+  input.value = kw;
+  if (clearBtn) clearBtn.style.display = 'block';
+  document.querySelectorAll('.quick-chip').forEach(c => {
+    c.classList.toggle('active', c.textContent.trim().toLowerCase() === kw.toLowerCase());
+  });
+  renderBeranda();
+}
+
 function setupNavigation() {
   const allNavButtons = document.querySelectorAll('[data-tab]');
 
@@ -54,15 +114,39 @@ function setupNavigation() {
       const activePane = document.getElementById(`pane-${target}`);
       if (activePane) activePane.classList.add('active');
 
-      if (target === 'beranda') renderBeranda();
+      if (target === 'beranda') {
+        updateDynamicGreeting();
+        renderBeranda();
+      }
       if (target === 'message') renderMessage();
       if (target === 'faq')     renderFaq();
     });
   });
 
-  // Filter & Search events
-  document.getElementById('search-input').addEventListener('input', renderBeranda);
-  document.getElementById('filter-category').addEventListener('change', renderBeranda);
+  // Search input events
+  const searchInput = document.getElementById('search-input');
+  const searchClearBtn = document.getElementById('search-clear-btn');
+  if (searchInput) {
+    searchInput.addEventListener('input', (e) => {
+      if (searchClearBtn) {
+        searchClearBtn.style.display = e.target.value.trim() ? 'block' : 'none';
+      }
+      document.querySelectorAll('.quick-chip').forEach(c => {
+        c.classList.toggle('active', c.textContent.trim().toLowerCase() === e.target.value.trim().toLowerCase());
+      });
+      renderBeranda();
+    });
+  }
+
+  // Category Pills Carousel
+  document.querySelectorAll('.cat-pill').forEach(pill => {
+    pill.addEventListener('click', () => {
+      document.querySelectorAll('.cat-pill').forEach(p => p.classList.remove('active'));
+      pill.classList.add('active');
+      state.activeCategory = pill.dataset.cat || 'ALL';
+      renderBeranda();
+    });
+  });
 }
 
 // ============================================================
@@ -226,7 +310,7 @@ async function loadEmailLogs() {
 // ============================================================
 function renderBeranda() {
   const searchVal = document.getElementById('search-input').value.toLowerCase().trim();
-  const catVal = document.getElementById('filter-category').value;
+  const catVal = state.activeCategory || 'ALL';
 
   let availableCount = 0;
   let borrowedCount = 0;
@@ -246,13 +330,21 @@ function renderBeranda() {
   container.innerHTML = '';
 
   const filtered = state.items.filter(it => {
-    const matchSearch = it.name.toLowerCase().includes(searchVal) || it.category.toLowerCase().includes(searchVal);
+    const matchSearch = !searchVal ||
+      it.name.toLowerCase().includes(searchVal) ||
+      it.category.toLowerCase().includes(searchVal) ||
+      (it.description || '').toLowerCase().includes(searchVal);
     const matchCat = catVal === 'ALL' || it.category === catVal;
     return matchSearch && matchCat;
   });
 
   if (!filtered.length) {
-    container.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--text-muted);">Tidak ada peralatan yang sesuai dengan pencarian.</div>`;
+    container.innerHTML = `
+      <div style="grid-column:1/-1;text-align:center;padding:40px 20px;color:var(--text-muted);">
+        <div style="font-size:28px;margin-bottom:10px;">&#128269;</div>
+        <div style="font-weight:600;margin-bottom:4px;">Tidak ada peralatan ditemukan</div>
+        <div style="font-size:12px;">Coba ubah kata kunci atau pilih kategori yang berbeda.</div>
+      </div>`;
     return;
   }
 
@@ -264,27 +356,77 @@ function renderBeranda() {
     const isLocked = it.status === 'MAINTENANCE_LOCKED';
     const isBorrowed = it.status === 'BORROWED';
 
+    // --- Primary Action Button (hierarchical visual weight) ---
     let actionBtn = '';
     if (isLocked) {
-      actionBtn = `<button class="btn-act btn-subtle-action btn-sm" onclick="unlockTool(${it.id})">Buka Kunci Servis</button>`;
+      actionBtn = `<button class="btn-act btn-warning-action btn-sm" onclick="unlockTool(${it.id})">Buka Kunci Servis</button>`;
     } else if (isBorrowed) {
       actionBtn = `<button class="btn-act btn-subtle-action btn-sm" onclick="openReturnModalByItemId(${it.id})">Selesaikan Pengembalian</button>`;
     } else {
       actionBtn = `<button class="btn-act btn-primary-action btn-sm" onclick="openChatWithItem(${it.id})">Pinjam Cepat</button>`;
     }
 
+    // --- Health / Risk Gauge ---
+    const dangerMap = { 'SANGAT TINGGI': 'red', 'TINGGI': 'yellow', 'SEDANG': 'yellow', 'RENDAH': 'green' };
+    const healthColor = dangerMap[it.danger_level] || 'green';
+    const healthLabel = it.danger_level === 'SANGAT TINGGI' ? 'Risiko Sangat Tinggi'
+                      : it.danger_level === 'TINGGI' ? 'Risiko Tinggi'
+                      : it.danger_level === 'SEDANG' ? 'Risiko Sedang'
+                      : 'Risiko Rendah';
+
+    // --- Social Activity Line (last borrower / active borrower) ---
+    let activityLine = '';
+    if (isBorrowed && it.active_borrower) {
+      activityLine = `
+        <div class="asset-activity">
+          <span class="activity-dot yellow"></span>
+          <span>Sedang dipinjam oleh <strong>${esc(it.active_borrower)}</strong></span>
+        </div>`;
+    } else if (!isBorrowed && it.last_borrower) {
+      activityLine = `
+        <div class="asset-activity">
+          <span class="activity-dot green"></span>
+          <span>Terakhir dipinjam: <strong>${esc(it.last_borrower)}</strong></span>
+        </div>`;
+    } else if (!isBorrowed && !it.last_borrower) {
+      activityLine = `
+        <div class="asset-activity">
+          <span class="activity-dot green"></span>
+          <span style="color:var(--text-muted);">Belum pernah dipinjam</span>
+        </div>`;
+    }
+
+    // --- Badge with animated pulse dot ---
+    const badgeLabel = it.status === 'AVAILABLE' ? 'Ready'
+                     : it.status === 'BORROWED' ? 'Dipinjam' : 'Lockout';
+    const badgeDotColor = it.status === 'AVAILABLE' ? 'green'
+                        : it.status === 'BORROWED' ? 'yellow' : 'red';
+
     card.innerHTML = `
       <div class="asset-img-wrap">
         <img class="asset-img" src="${photoUrl}" alt="${esc(it.name)}" onerror="this.src='/img/bor.svg'">
-        <span class="asset-badge ${it.status}">${it.status === 'AVAILABLE' ? 'Ready' : (it.status === 'BORROWED' ? 'Dipinjam' : 'Lockout')}</span>
+        <span class="asset-badge ${it.status}">
+          <span class="status-pulse-dot ${badgeDotColor}"></span>
+          ${badgeLabel}
+        </span>
+        ${it.power_watts ? `<span style="position:absolute;bottom:8px;left:8px;font-size:10px;font-weight:700;background:rgba(0,0,0,0.6);color:#94a3b8;padding:2px 7px;border-radius:4px;backdrop-filter:blur(4px);">${it.power_watts}W</span>` : ''}
       </div>
       <div class="asset-body">
         <div class="asset-name">${esc(it.name)}</div>
-        <div class="asset-meta">${esc(it.category)} ${it.power_watts ? `• ${it.power_watts}W` : ''}</div>
-        <div class="asset-desc">${esc(it.description)}</div>
+        <div class="asset-meta">${esc(it.category)}</div>
+        <div class="asset-health-bar">
+          <div class="health-label">
+            <span>Kelayakan Teknis</span>
+          </div>
+          <div class="health-gauge">
+            <div class="health-fill ${healthColor}"></div>
+          </div>
+          <span style="font-size:10.5px;font-weight:700;color:${healthColor === 'red' ? 'var(--red-text)' : healthColor === 'yellow' ? 'var(--yellow-text)' : 'var(--green-text)'};">${healthLabel.split(' ').pop()}</span>
+        </div>
+        ${activityLine}
         <div class="asset-actions">
           ${actionBtn}
-          <button class="btn-act btn-subtle-action btn-sm" style="width:auto;" onclick="showAssetDetail(${it.id})">Detail</button>
+          <button class="btn-act btn-subtle-action btn-sm" style="width:auto;flex-shrink:0;" onclick="showAssetDetail(${it.id})">Detail</button>
         </div>
       </div>
     `;
@@ -309,11 +451,115 @@ async function unlockTool(itemId) {
   }
 }
 
-function showAssetDetail(itemId) {
+async function showAssetDetail(itemId) {
   const item = state.items.find(i => i.id === itemId);
   if (!item) return;
 
-  alert(`Nama: ${item.name}\nKategori: ${item.category}\nDaya: ${item.power_watts} Watt\nTingkat Bahaya: ${item.danger_level}\nStatus: ${item.status}\nKeterangan: ${item.description}`);
+  const modal = document.getElementById('modal-asset-detail');
+  const title = document.getElementById('detail-modal-title');
+  const body = document.getElementById('detail-modal-body');
+  if (!modal || !body) return;
+
+  title.textContent = item.name;
+  body.innerHTML = `<div style="text-align:center;padding:20px;color:var(--text-muted);">Memuat data...</div>`;
+  modal.classList.add('active');
+
+  // Fetch detail record (includes borrowing history)
+  let records = [];
+  try {
+    const res = await fetch(`/api/items/${itemId}`);
+    const data = await res.json();
+    records = (data.item && data.item.records) || [];
+  } catch(e) {}
+
+  const dangerColors = {
+    'SANGAT TINGGI': { color: 'var(--red-text)', bg: 'var(--red-bg)' },
+    'TINGGI':        { color: 'var(--yellow-text)', bg: 'var(--yellow-bg)' },
+    'SEDANG':        { color: 'var(--yellow-text)', bg: 'var(--yellow-bg)' },
+    'RENDAH':        { color: 'var(--green-text)', bg: 'var(--green-bg)' }
+  };
+  const dc = dangerColors[item.danger_level] || dangerColors['RENDAH'];
+
+  const statusLabel = item.status === 'AVAILABLE' ? 'Tersedia' : item.status === 'BORROWED' ? 'Sedang Dipinjam' : 'Terkunci - Servis';
+  const statusColor = item.status === 'AVAILABLE' ? 'var(--green-text)' : item.status === 'BORROWED' ? 'var(--yellow-text)' : 'var(--red-text)';
+
+  let historyHtml = '';
+  if (records.length) {
+    historyHtml = records.map(r => {
+      const zoneColor = r.zone === 'GREEN' ? 'var(--green-text)' : r.zone === 'YELLOW' ? 'var(--yellow-text)' : 'var(--red-text)';
+      const zoneLabel = r.zone === 'GREEN' ? 'Hijau' : r.zone === 'YELLOW' ? 'Kuning' : 'Merah';
+      return `
+        <div class="history-mini-item">
+          <div>
+            <div style="font-weight:700;font-size:12.5px;color:var(--text-primary);">${esc(r.borrower_name || '-')}</div>
+            <div style="font-size:11px;color:var(--text-muted);">${(r.created_at||'').substring(0,10)} &bull; ${r.borrow_days} hari</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-weight:700;font-size:11.5px;color:${zoneColor};">Zona ${zoneLabel}</div>
+            <div style="font-size:10.5px;color:var(--text-muted);">h(S) = ${r.heuristic_score}</div>
+          </div>
+        </div>`;
+    }).join('');
+  } else {
+    historyHtml = `<div style="text-align:center;padding:14px;font-size:12px;color:var(--text-muted);">Alat ini belum pernah memiliki riwayat peminjaman.</div>`;
+  }
+
+  let borrowerBadge = '';
+  if (item.active_borrower) {
+    borrowerBadge = `<div style="margin-top:8px;padding:8px 10px;background:rgba(217,119,6,0.12);border:1px solid rgba(245,158,11,0.3);border-radius:8px;font-size:12px;color:var(--yellow-text);">
+      Sedang dipinjam oleh <strong>${esc(item.active_borrower)}</strong>
+    </div>`;
+  }
+
+  body.innerHTML = `
+    <div class="detail-modal-layout">
+      <div class="detail-img-banner">
+        <img src="${esc(item.last_photo_url || '/img/bor.svg')}" alt="${esc(item.name)}" onerror="this.src='/img/bor.svg'">
+        <span class="asset-badge ${item.status}" style="position:absolute;top:10px;right:10px;">
+          <span class="status-pulse-dot ${item.status === 'AVAILABLE' ? 'green' : item.status === 'BORROWED' ? 'yellow' : 'red'}"></span>
+          ${statusLabel}
+        </span>
+      </div>
+
+      <div class="tech-spec-grid">
+        <div class="tech-spec-item">
+          <div class="tech-spec-k">Kategori</div>
+          <div class="tech-spec-v">${esc(item.category)}</div>
+        </div>
+        <div class="tech-spec-item">
+          <div class="tech-spec-k">Daya Listrik</div>
+          <div class="tech-spec-v">${item.power_watts ? item.power_watts + ' Watt' : 'Non-Listrik'}</div>
+        </div>
+        <div class="tech-spec-item">
+          <div class="tech-spec-k">Status</div>
+          <div class="tech-spec-v" style="color:${statusColor};">${statusLabel}</div>
+        </div>
+        <div class="tech-spec-item">
+          <div class="tech-spec-k">Tingkat Bahaya</div>
+          <div class="tech-spec-v" style="color:${dc.color};">${esc(item.danger_level)}</div>
+        </div>
+      </div>
+
+      <div style="padding:10px;background:rgba(15,23,42,0.5);border-radius:8px;border:1px solid rgba(255,255,255,0.05);font-size:12.5px;color:var(--text-secondary);line-height:1.5;">
+        ${esc(item.description || '-')}
+      </div>
+
+      ${borrowerBadge}
+
+      <div class="detail-section-title">Riwayat Triase AI (5 Terakhir)</div>
+      <div class="history-mini-list">${historyHtml}</div>
+
+      ${item.status === 'AVAILABLE' ? `
+      <button class="btn-act btn-primary-action" onclick="closeAssetDetailModal(); openChatWithItem(${item.id});">
+        Pinjam Alat Ini Sekarang
+      </button>` : ''}
+    </div>
+  `;
+}
+
+function closeAssetDetailModal() {
+  const modal = document.getElementById('modal-asset-detail');
+  if (modal) modal.classList.remove('active');
 }
 
 // ============================================================

@@ -36,6 +36,18 @@
          ======================================================== -->
     <div class="tab-pane active" id="pane-beranda">
 
+      <!-- 0. Dynamic Personalized Greeting Banner -->
+      <div class="greeting-banner" id="greeting-banner">
+        <div class="greeting-content">
+          <div class="greeting-badge">
+            <span class="status-pulse-dot green"></span>
+            <span id="greeting-time-tag">Pagi Hari</span>
+          </div>
+          <h2 class="greeting-title" id="greeting-text">Selamat Pagi, Kak!</h2>
+          <p class="greeting-subtitle" id="greeting-sub">Ada peralatan rumah tangga yang perlu disiapkan atau dipinjam hari ini?</p>
+        </div>
+      </div>
+
       <!-- 1. Ringkasan Status Metrik -->
       <div class="metrics-grid">
         <div class="metric-card">
@@ -52,17 +64,60 @@
         </div>
       </div>
 
-      <!-- 2. Pencarian Cepat & Filter Kategori -->
-      <div class="search-filter-row">
-        <input type="text" id="search-input" class="search-input" placeholder="Cari alat (contoh: bor, gerinda, tangga)...">
-        <select id="filter-category" class="filter-select">
-          <option value="ALL">Semua Kategori</option>
-          <option value="Pertukangan Listrik">Listrik</option>
-          <option value="Pertukangan Ringan">Pertukangan</option>
-          <option value="Perkebunan">Kebun</option>
-          <option value="Akses Ketinggian">Tangga</option>
-          <option value="Peralatan Air & Cuci">Air & Cuci</option>
-        </select>
+      <!-- 2. Pencarian Cepat & Quick Chips -->
+      <div class="search-filter-section">
+        <div class="search-input-wrap">
+          <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+          <input type="text" id="search-input" class="search-input" placeholder="Cari nama alat atau spesifikasi daya...">
+          <button id="search-clear-btn" class="search-clear-btn" style="display:none;" onclick="clearSearch()">&times;</button>
+        </div>
+
+        <!-- Quick Keyword Chips -->
+        <div class="quick-keywords-row">
+          <span class="quick-keywords-label">Paling Sering:</span>
+          <div class="quick-chips-wrap">
+            <button class="quick-chip" onclick="applyQuickKeyword('Bor')">Bor</button>
+            <button class="quick-chip" onclick="applyQuickKeyword('Tangga')">Tangga</button>
+            <button class="quick-chip" onclick="applyQuickKeyword('Gerinda')">Gerinda</button>
+            <button class="quick-chip" onclick="applyQuickKeyword('Rumput')">Rumput</button>
+            <button class="quick-chip" onclick="applyQuickKeyword('Jet Cleaner')">Jet Cleaner</button>
+            <button class="quick-chip" onclick="applyQuickKeyword('Obeng')">Obeng</button>
+          </div>
+        </div>
+
+        <!-- Interactive Category Pills Carousel -->
+        <div class="category-pills-carousel" id="category-pills">
+          <button class="cat-pill active" data-cat="ALL">
+            <span class="cat-pill-icon">&#9638;</span>
+            <span>Semua</span>
+          </button>
+          <button class="cat-pill" data-cat="Pertukangan Listrik">
+            <span class="cat-pill-icon">&#9889;</span>
+            <span>Listrik</span>
+          </button>
+          <button class="cat-pill" data-cat="Perkebunan">
+            <span class="cat-pill-icon">&#10047;</span>
+            <span>Kebun</span>
+          </button>
+          <button class="cat-pill" data-cat="Akses Ketinggian">
+            <span class="cat-pill-icon">&#9650;</span>
+            <span>Tangga</span>
+          </button>
+          <button class="cat-pill" data-cat="Peralatan Air & Cuci">
+            <span class="cat-pill-icon">&#9874;</span>
+            <span>Air & Cuci</span>
+          </button>
+          <button class="cat-pill" data-cat="Pertukangan Ringan">
+            <span class="cat-pill-icon">&#9881;</span>
+            <span>Ringan</span>
+          </button>
+          <button class="cat-pill" data-cat="Perkakas Manual">
+            <span class="cat-pill-icon">&#9776;</span>
+            <span>Manual</span>
+          </button>
+        </div>
       </div>
 
       <!-- 3. Grid Inventaris Visual -->
@@ -285,6 +340,19 @@
       <div style="display:flex;gap:8px;margin-top:6px;">
         <button class="btn-act btn-primary-action" id="btn-confirm-return">Verifikasi & Selesaikan Pengembalian</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== INTERACTIVE ASSET DETAIL & HISTORY MODAL ==================== -->
+<div class="modal-overlay" id="modal-asset-detail">
+  <div class="modal-dialog">
+    <div class="modal-dialog-header">
+      <strong style="font-size:14px;" id="detail-modal-title">Detail Peralatan & Riwayat</strong>
+      <button class="btn-drawer" onclick="closeAssetDetailModal()">&times;</button>
+    </div>
+    <div class="modal-dialog-body" id="detail-modal-body">
+      <!-- Populated dynamically by JS -->
     </div>
   </div>
 </div>

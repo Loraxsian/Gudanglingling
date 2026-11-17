@@ -94,7 +94,33 @@ def init_db():
 def get_all_items() -> List[Dict[str, Any]]:
     with get_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM items ORDER BY id ASC")
+        cursor.execute("""
+        SELECT 
+            i.*,
+            active_b.borrower_name as active_borrower,
+            active_b.borrow_days as active_borrow_days,
+            active_b.id as active_record_id,
+            last_b.borrower_name as last_borrower,
+            last_b.returned_at as last_returned_at
+        FROM items i
+        LEFT JOIN (
+            SELECT item_id, id, borrower_name, borrow_days 
+            FROM borrowing_records 
+            WHERE status = 'ACTIVE' 
+            GROUP BY item_id
+        ) active_b ON i.id = active_b.item_id
+        LEFT JOIN (
+            SELECT b1.item_id, b1.borrower_name, b1.returned_at
+            FROM borrowing_records b1
+            INNER JOIN (
+                SELECT item_id, MAX(id) as max_id
+                FROM borrowing_records
+                WHERE status = 'RETURNED'
+                GROUP BY item_id
+            ) b2 ON b1.id = b2.max_id
+        ) last_b ON i.id = last_b.item_id
+        ORDER BY i.id ASC
+        """)
         rows = cursor.fetchall()
         return [dict(row) for row in rows]
 
@@ -104,7 +130,18 @@ def get_item_by_id(item_id: int) -> Optional[Dict[str, Any]]:
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM items WHERE id = ?", (item_id,))
         row = cursor.fetchone()
-        return dict(row) if row else None
+        if not row:
+            return None
+        item = dict(row)
+        cursor.execute("""
+        SELECT id, borrower_name, borrower_phone, borrow_days, status, decision_name, zone, heuristic_score, cf_percentage, created_at, returned_at
+        FROM borrowing_records
+        WHERE item_id = ?
+        ORDER BY id DESC
+        LIMIT 5
+        """, (item_id,))
+        item["records"] = [dict(r) for r in cursor.fetchall()]
+        return item
 
 
 def update_item_status(item_id: int, status: str, last_photo_url: Optional[str] = None) -> bool:
