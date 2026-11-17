@@ -8,43 +8,48 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32x32.png">
   <link rel="icon" type="image/png" sizes="64x64" href="/img/favicon-64x64.png">
   <link rel="apple-touch-icon" href="/img/logo-emblem.png">
-  <link rel="stylesheet" href="/css/style.css?v=4.6">
+  <link rel="stylesheet" href="/css/style.css?v=5.0">
 </head>
 <body>
 
 <div class="app-shell">
 
-  <!-- ==================== TOP APP HEADER ==================== -->
+  <!-- ==================== TOP APP HEADER (TWO-TIER) ==================== -->
   <header class="app-header">
-    <div class="brand-wrapper">
-      <div class="brand-logo-wrap">
-        <img src="/img/logo-emblem.png" alt="GudangLingling Logo" class="brand-logo-img">
-      </div>
-      <div class="brand-info">
-        <div class="brand-title-line">
-          <span class="brand-name">GudangLingling</span>
-          <div class="header-status-ticker" id="header-status-ticker" title="Status Operasional Gudang Real-time">
-            <span class="status-pulse-dot green" id="header-ticker-dot"></span>
-            <span id="header-ticker-text">Status: Aman &bull; 0 Dipinjam</span>
-          </div>
+    <!-- Tier 1: Brand Identity & Controls -->
+    <div class="header-top-row">
+      <div class="brand-wrapper">
+        <div class="brand-logo-wrap">
+          <img src="/img/logo-emblem.png" alt="GudangLingling Logo" class="brand-logo-img">
         </div>
-        <div class="brand-sub">Sistem Lacak Pinjam Barang Warga</div>
+        <div class="brand-info">
+          <span class="brand-name">GudangLingling</span>
+          <div class="brand-sub">Sistem Lacak Pinjam Barang Warga</div>
+        </div>
+      </div>
+
+      <div class="header-controls">
+        <!-- Theme Toggle Button (Dark / Light) -->
+        <button class="theme-toggle-btn" id="btn-theme-toggle" onclick="toggleTheme()" title="Ganti Mode Terang / Gelap">
+          <span id="theme-toggle-icon">&#9788;</span>
+          <span class="theme-toggle-label" id="theme-toggle-label">Light</span>
+        </button>
+
+        <!-- Desktop Navigation Tabs (>= 768px) -->
+        <nav class="desktop-nav">
+          <button class="desktop-nav-btn active" data-tab="beranda">Beranda</button>
+          <button class="desktop-nav-btn" data-tab="message">Message</button>
+          <button class="desktop-nav-btn" data-tab="faq">FaQ</button>
+        </nav>
       </div>
     </div>
 
-    <div style="display:flex;align-items:center;gap:10px;">
-      <!-- Theme Toggle Button (Dark / Light) -->
-      <button class="theme-toggle-btn" id="btn-theme-toggle" onclick="toggleTheme()" title="Ganti Mode Terang / Gelap">
-        <span id="theme-toggle-icon">&#9788;</span>
-        <span class="theme-toggle-label" id="theme-toggle-label">Light</span>
-      </button>
-
-      <!-- Desktop Navigation Tabs (>= 768px) -->
-      <nav class="desktop-nav">
-        <button class="desktop-nav-btn active" data-tab="beranda">Beranda</button>
-        <button class="desktop-nav-btn" data-tab="message">Message</button>
-        <button class="desktop-nav-btn" data-tab="faq">FaQ</button>
-      </nav>
+    <!-- Tier 2: Live Operational Status Pill -->
+    <div class="header-status-row">
+      <div class="header-status-ticker" id="header-status-ticker" title="Status Operasional Gudang Real-time">
+        <span class="status-pulse-dot green" id="header-ticker-dot"></span>
+        <span id="header-ticker-text">Status: Aman &bull; 0 Dipinjam</span>
+      </div>
     </div>
   </header>
 
@@ -759,6 +764,6 @@
 <!-- ==================== TOAST NOTIFICATION CONTAINER ==================== -->
 <div class="app-toast" id="app-toast"></div>
 
-<script src="/js/app.js?v=4.6"></script>
+<script src="/js/app.js?v=5.0"></script>
 </body>
 </html>

@@ -1150,11 +1150,13 @@ function renderMessage() {
       const daysLeft = r.borrow_days - (r.days_elapsed || 0);
       let statusTag = '';
       if (daysLeft < 0) {
-        statusTag = `<span class="reminder-time-tag overdue">⚠️ Terlambat ${Math.abs(daysLeft)} Hari</span>`;
+        statusTag = `<span class="reminder-time-tag overdue">🔴 Terlambat ${Math.abs(daysLeft)} Hari</span>`;
       } else if (daysLeft === 0) {
         statusTag = `<span class="reminder-time-tag due">⏰ Jatuh Tempo Hari Ini</span>`;
+      } else if (daysLeft === 1) {
+        statusTag = `<span class="reminder-time-tag due">🟠 Sisa 1 Hari</span>`;
       } else {
-        statusTag = `<span class="reminder-time-tag due">⏳ Sisa ${daysLeft} Hari</span>`;
+        statusTag = `<span class="reminder-time-tag safe">🟢 Sisa ${daysLeft} Hari</span>`;
       }
 
       const waMsg = encodeURIComponent(
@@ -1191,19 +1193,20 @@ function renderMessage() {
   if (!state.emailLogs.length) {
     emailLogBody.innerHTML = `
       <tr>
-        <td colspan="4" style="text-align:center;color:var(--text-muted);padding:18px 14px;line-height:1.6;">
-          Belum ada riwayat peminjaman yang dicatat.<br>
-          <span style="font-size:11.5px;color:var(--text-secondary);">Arsip bukti digital akan otomatis muncul di sini saat alat mulai dipinjam.</span>
+        <td colspan="4" style="text-align:center;color:var(--text-muted);padding:20px 14px;line-height:1.6;">
+          📂 Belum ada catatan serah terima alat.<br>
+          <span style="font-size:11.5px;color:var(--text-secondary);">Bukti arsip digital akan otomatis tersimpan di sini setiap kali ada warga yang meminjam.</span>
         </td>
       </tr>`;
   } else {
     state.emailLogs.forEach(log => {
+      const statusDisplay = log.status === 'ARCHIVED' ? '✅ Tersimpan' : esc(log.status);
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td>${(log.created_at || '').substring(0, 16)}</td>
-        <td>${esc(log.borrower_name || 'Keluarga')}</td>
+        <td><strong>${esc(log.borrower_name || 'Warga')}</strong></td>
         <td>${esc(log.subject)}</td>
-        <td><span style="font-weight:700;color:var(--green-text);">${esc(log.status)}</span></td>
+        <td><span style="font-weight:700;color:var(--green-text);white-space:nowrap;">${statusDisplay}</span></td>
       `;
       emailLogBody.appendChild(tr);
     });
