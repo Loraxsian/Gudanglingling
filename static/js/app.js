@@ -99,6 +99,37 @@ function toggleTheme() {
 let loginLockoutInterval = null;
 let pendingAuthSession = null;
 
+function togglePasswordVisibility(inputId, btn) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  const isHidden = input.type === 'password';
+  input.type = isHidden ? 'text' : 'password';
+  if (btn) {
+    btn.title = isHidden ? 'Sembunyikan Password' : 'Tampilkan Password';
+    btn.innerHTML = isHidden
+      ? `<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>`
+      : `<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`;
+  }
+}
+
+function updateLoginSecurityNote(mode, attemptsLeft = 3) {
+  const noteEl = document.getElementById('login-security-note');
+  if (!noteEl) return;
+  noteEl.className = 'login-security-note';
+  if (mode === 'warn') {
+    noteEl.classList.add('warn');
+    noteEl.textContent = `⚠️ Peringatan Keamanan: Sisa ${attemptsLeft} kali percobaan sebelum terkunci sementara.`;
+  } else if (mode === 'danger') {
+    noteEl.classList.add('danger');
+    noteEl.textContent = `🚨 Peringatan Kritis: Sisa ${attemptsLeft} kali percobaan lagi sebelum dikunci!`;
+  } else if (mode === 'locked') {
+    noteEl.classList.add('danger');
+    noteEl.textContent = '🔒 Akses dikunci sementara karena 3 kali percobaan gagal.';
+  } else {
+    noteEl.textContent = 'Dilindungi proteksi anti-brute force (maks. 3 kali percobaan salah).';
+  }
+}
+
 async function handleLandingLogin(e) {
   e.preventDefault();
   const operatorInput = document.getElementById('login-operator-input');
@@ -125,6 +156,7 @@ async function handleLandingLogin(e) {
     const data = await res.json();
 
     if (res.ok && data.success) {
+      updateLoginSecurityNote('default');
       if (pwInput) pwInput.value = '';
       if (submitBtn) {
         submitBtn.disabled = false;
@@ -159,10 +191,16 @@ async function handleLandingLogin(e) {
     }
 
     if (res.status === 429 || data.locked) {
+      updateLoginSecurityNote('locked');
       startLoginLockoutTimer(data.retry_after || 120);
-    } else if (submitBtn) {
-      submitBtn.disabled = false;
-      submitBtn.textContent = 'Masuk ke Gudang';
+    } else {
+      if (typeof data.attempts_left === 'number') {
+        updateLoginSecurityNote(data.attempts_left <= 1 ? 'danger' : 'warn', data.attempts_left);
+      }
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Masuk ke Gudang';
+      }
     }
   } catch (err) {
     if (errBox) {
@@ -330,8 +368,12 @@ function handleLogout() {
   if (errBox) errBox.style.display = 'none';
   if (pinInput) {
     pinInput.value = '';
+    pinInput.type = 'password';
   }
+  updateLoginSecurityNote('default');
   checkDefaultPasswordNote();
+  const userInput = document.getElementById('login-operator-input');
+  if (userInput) setTimeout(() => userInput.focus(), 50);
   showToast('Sesi dikunci. Silakan login kembali.', 'info');
 }
 

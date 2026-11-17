@@ -8,7 +8,7 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32x32.png">
   <link rel="icon" type="image/png" sizes="64x64" href="/img/favicon-64x64.png">
   <link rel="apple-touch-icon" href="/img/logo-emblem.png">
-  <link rel="stylesheet" href="/css/style.css?v=7.0">
+  <link rel="stylesheet" href="/css/style.css?v=7.1">
 </head>
 <body>
 
@@ -29,12 +29,20 @@
     <form id="login-form" class="login-form" onsubmit="handleLandingLogin(event)">
       <div>
         <label class="form-label" for="login-operator-input">Username</label>
-        <input type="text" id="login-operator-input" class="form-input" placeholder="Masukkan username" autocomplete="username" required>
+        <input type="text" id="login-operator-input" class="form-input" placeholder="Masukkan username" autocomplete="username" autofocus required>
       </div>
 
       <div>
         <label class="form-label" for="login-pin-input">Password</label>
-        <input type="password" id="login-pin-input" class="form-input" placeholder="Masukkan password" autocomplete="current-password" required>
+        <div class="password-input-wrap">
+          <input type="password" id="login-pin-input" class="form-input" style="padding-right:40px;" placeholder="Masukkan password" autocomplete="current-password" required>
+          <button type="button" class="btn-toggle-pw" onclick="togglePasswordVisibility('login-pin-input', this)" title="Tampilkan / Sembunyikan Password" aria-label="Tampilkan Password">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+              <circle cx="12" cy="12" r="3"></circle>
+            </svg>
+          </button>
+        </div>
       </div>
 
       <div id="login-error-box" class="login-error-box" style="display:none;"></div>
@@ -51,7 +59,7 @@
       </div>
     </form>
 
-    <div class="login-security-note">
+    <div id="login-security-note" class="login-security-note">
       Dilindungi proteksi anti-brute force (maks. 3 kali percobaan salah).
     </div>
     <div class="login-footer-credit">
@@ -853,6 +861,6 @@
 <!-- ==================== TOAST NOTIFICATION CONTAINER ==================== -->
 <div class="app-toast" id="app-toast"></div>
 
-<script src="/js/app.js?v=7.0"></script>
+<script src="/js/app.js?v=7.1"></script>
 </body>
 </html>
