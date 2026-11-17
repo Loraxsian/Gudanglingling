@@ -8,7 +8,7 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32x32.png">
   <link rel="icon" type="image/png" sizes="64x64" href="/img/favicon-64x64.png">
   <link rel="apple-touch-icon" href="/img/logo-emblem.png">
-  <link rel="stylesheet" href="/css/style.css?v=3.5">
+  <link rel="stylesheet" href="/css/style.css?v=4.0">
 </head>
 <body>
 
@@ -463,11 +463,34 @@
     </button>
   </div>
 
-  <!-- Interactive Chat Composer Input Bar -->
+  <!-- Interactive Chat Composer Input Bar with Camera Attachment -->
   <div class="chat-composer-wrap">
+    <!-- Image Attachment Preview Pill -->
+    <div class="chat-attach-preview" id="chat-attach-preview" style="display:none;">
+      <div class="attach-preview-item">
+        <img id="chat-attach-img" src="" alt="Lampiran Foto">
+        <button type="button" class="btn-remove-attach" onclick="removeChatAttachment()" title="Hapus Foto">&times;</button>
+      </div>
+      <div class="attach-meta-text">
+        <span class="attach-title">Foto Terlampir</span>
+        <span class="attach-hint">Foto akan disertakan saat kirim pesan / daftar alat</span>
+      </div>
+    </div>
+
+    <!-- Hidden Camera / File Input -->
+    <input type="file" id="chat-file-input" accept="image/*" capture="environment" style="display:none;" onchange="handleChatFileSelect(event)">
+
     <form class="chat-composer-form" id="chat-composer-form" onsubmit="handleChatSubmit(event)">
-      <input type="text" id="chat-user-input" class="chat-user-input" placeholder="Tanya tentang alat, aturan, atau cara pinjam..." autocomplete="off">
-      <button type="submit" class="btn-chat-send" id="btn-chat-send" title="Kirim Pertanyaan">
+      <!-- Camera Attach Button -->
+      <button type="button" class="btn-chat-attach" id="btn-chat-attach" onclick="document.getElementById('chat-file-input').click()" title="Ambil Foto Alat (Kamera / Galeri)">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+          <circle cx="12" cy="13" r="4"></circle>
+        </svg>
+      </button>
+
+      <input type="text" id="chat-user-input" class="chat-user-input" placeholder="Tanya alat, pinjam, atau lampirkan foto..." autocomplete="off">
+      <button type="submit" class="btn-chat-send" id="btn-chat-send" title="Kirim Pesan">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
           <line x1="22" y1="2" x2="11" y2="13"></line>
           <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
@@ -727,6 +750,6 @@
 <!-- ==================== TOAST NOTIFICATION CONTAINER ==================== -->
 <div class="app-toast" id="app-toast"></div>
 
-<script src="/js/app.js?v=3.5"></script>
+<script src="/js/app.js?v=4.0"></script>
 </body>
 </html>

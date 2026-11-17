@@ -1321,17 +1321,56 @@ function appendBotChat(html) {
   scrollChatDown();
 }
 
-function appendUserChat(text) {
+function appendUserChat(text, photoUrl = '') {
   const row = document.createElement('div');
   row.className = 'chat-row user';
+  const imgHtml = photoUrl ? `<img class="bubble-user-img" src="${photoUrl}" alt="Foto Terlampir">` : '';
+  const textHtml = text ? `<div>${esc(text)}</div>` : '';
   row.innerHTML = `
     <div class="bubble bubble-user">
-      <div>${esc(text)}</div>
+      ${imgHtml}
+      ${textHtml}
       <div class="bubble-meta">${getTime()}</div>
     </div>
   `;
   chatDrawerBody.appendChild(row);
   scrollChatDown();
+}
+
+// Chat Photo Attachment Handler
+let chatAttachedPhoto = {
+  base64: null,
+  file: null
+};
+
+function handleChatFileSelect(e) {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function(evt) {
+    chatAttachedPhoto = {
+      base64: evt.target.result,
+      file: file
+    };
+    const previewWrap = document.getElementById('chat-attach-preview');
+    const previewImg = document.getElementById('chat-attach-img');
+    if (previewImg && previewWrap) {
+      previewImg.src = evt.target.result;
+      previewWrap.style.display = 'flex';
+    }
+    const input = document.getElementById('chat-user-input');
+    if (input) input.focus();
+  };
+  reader.readAsDataURL(file);
+}
+
+function removeChatAttachment() {
+  chatAttachedPhoto = { base64: null, file: null };
+  const previewWrap = document.getElementById('chat-attach-preview');
+  if (previewWrap) previewWrap.style.display = 'none';
+  const fileInput = document.getElementById('chat-file-input');
+  if (fileInput) fileInput.value = '';
 }
 
 function showTypingIndicator() {
@@ -1466,30 +1505,70 @@ function restartChatConversation() {
 
 function sendSuggestedQuery(text) {
   const input = document.getElementById('chat-user-input');
-  if (input) input.value = text;
-  processUserChatMessage(text);
+  if (input) input.value = '';
+  processUserChatMessage(text, null);
 }
 
-function handleChatSubmit(e) {
+async function handleChatSubmit(e) {
   e.preventDefault();
   const input = document.getElementById('chat-user-input');
-  if (!input) return;
-  const text = input.value.trim();
-  if (!text) return;
-  input.value = '';
-  processUserChatMessage(text);
+  const text = (input ? input.value : '').trim();
+  const photo = chatAttachedPhoto.base64;
+
+  if (!text && !photo) return;
+
+  // Clear composer & attachment
+  if (input) input.value = '';
+  removeChatAttachment();
+
+  processUserChatMessage(text, photo);
+}
+
+// Category Guesser for New Tools
+function guessToolCategory(toolName) {
+  const t = (toolName || '').toLowerCase();
+  if (t.includes('cangkul') || t.includes('arit') || t.includes('sekop') || t.includes('rumput') || t.includes('kebun') || t.includes('tanaman') || t.includes('dahan') || t.includes('garpu')) {
+    return 'Perkebunan';
+  }
+  if (t.includes('bor') || t.includes('gerinda') || t.includes('las') || t.includes('solder') || t.includes('jigsaw') || t.includes('listrik') || t.includes('mesin') || t.includes('circular')) {
+    return 'Pertukangan Listrik';
+  }
+  if (t.includes('tangga') || t.includes('steger') || t.includes('scaffolding')) {
+    return 'Akses Ketinggian';
+  }
+  if (t.includes('jet') || t.includes('cleaner') || t.includes('cuci') || t.includes('pompa') || t.includes('selang') || t.includes('steam')) {
+    return 'Peralatan Air & Cuci';
+  }
+  if (t.includes('obeng') || t.includes('tang') || t.includes('kunci') || t.includes('meteran') || t.includes('tespen')) {
+    return 'Pertukangan Ringan';
+  }
+  return 'Perkakas Manual';
+}
+
+function getDefaultCategoryPhoto(category) {
+  if (category === 'Perkebunan') return '/img/rumput.svg';
+  if (category === 'Akses Ketinggian') return '/img/tangga.svg';
+  if (category === 'Peralatan Air & Cuci') return '/img/jetcleaner.svg';
+  if (category === 'Pertukangan Ringan') return '/img/obeng.svg';
+  if (category === 'Pertukangan Listrik') return '/img/bor.svg';
+  return '/img/toolset.svg';
 }
 
 // ============================================================
 // NATURAL LANGUAGE ENTITY EXTRACTOR (EXPRESS BORROWING)
 // ============================================================
 function parseNaturalBorrowQuery(text) {
-  const lower = text.toLowerCase();
-  
-  // 1. Check for borrow intent keywords
+  const lower = (text || '').toLowerCase().trim();
+  if (!lower) return null;
+
+  // 1. Check for borrow or add intent keywords
   const borrowKeywords = ['pinjam', 'minjam', 'meminjam', 'sewa', 'ambil', 'butuh', 'pakai', 'gunakan'];
   const hasBorrow = borrowKeywords.some(kw => lower.includes(kw));
-  if (!hasBorrow) return null;
+
+  const addKeywords = ['tambah', 'daftarkan', 'catat', 'masukkan', 'input'];
+  const hasAdd = addKeywords.some(kw => lower.includes(kw));
+
+  if (!hasBorrow && !hasAdd) return null;
 
   // 2. Extract Phone Number (e.g. 081212341234, 6281212341234, wa 081212341234)
   let phone = '';
@@ -1513,7 +1592,7 @@ function parseNaturalBorrowQuery(text) {
     days = 3;
   }
 
-  // 4. Match Tool against state.items
+  // 4. Match Tool against existing state.items
   let matchedTool = null;
   const items = (state.items || []);
 
@@ -1540,7 +1619,7 @@ function parseNaturalBorrowQuery(text) {
     }
   }
 
-  // Common tool synonyms fallback
+  // Common tool synonyms fallback for existing items
   if (!matchedTool && items.length > 0) {
     if (lower.includes('bor')) matchedTool = items.find(i => i.name.toLowerCase().includes('bor'));
     else if (lower.includes('palu')) matchedTool = items.find(i => i.name.toLowerCase().includes('palu'));
@@ -1552,57 +1631,232 @@ function parseNaturalBorrowQuery(text) {
     else if (lower.includes('jigsaw') || lower.includes('gergaji')) matchedTool = items.find(i => i.name.toLowerCase().includes('jigsaw'));
   }
 
-  if (!matchedTool) {
+  // 5. If Tool matches existing item:
+  if (matchedTool) {
+    let clean = text;
+    if (phoneMatch) clean = clean.replace(phoneMatch[0], ' ');
+    if (daysMatch) clean = clean.replace(daysMatch[0], ' ');
+    clean = clean.replace(new RegExp(matchedTool.name, 'gi'), ' ');
+    matchedTool.name.split(/\s+/).forEach(w => {
+      if (w.length >= 3) clean = clean.replace(new RegExp('\\b' + w + '\\b', 'gi'), ' ');
+    });
+
+    const stopWords = [
+      'pinjam', 'minjam', 'meminjam', 'sewa', 'ambil', 'butuh', 'pakai',
+      'mau', 'ingin', 'tolong', 'dong', 'bisa', 'kah', 'ya', 'nomor', 'no',
+      'wa', 'whatsapp', 'hp', 'nohp', 'telp', 'telepon', 'hari', 'hr',
+      'buat', 'untuk', 'atas', 'nama', 'peminjam', 'halo', 'hai', 'siang',
+      'pagi', 'sore', 'malam', 'permisi'
+    ];
+    stopWords.forEach(sw => {
+      clean = clean.replace(new RegExp('\\b' + sw + '\\b', 'gi'), ' ');
+    });
+
+    let name = clean.replace(/[^a-zA-Z\s]/g, ' ').replace(/\s+/g, ' ').trim();
+    const honorificMatch = text.match(/\b(pak|bu|bapak|ibu|mas|mbak)\s+([A-Za-z]+)/i);
+    if (honorificMatch) {
+      name = `${honorificMatch[1].charAt(0).toUpperCase() + honorificMatch[1].slice(1).toLowerCase()} ${honorificMatch[2].charAt(0).toUpperCase() + honorificMatch[2].slice(1).toLowerCase()}`;
+    } else if (name) {
+      name = name.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+    }
+
+    if (!name || name.length < 2) name = 'Warga / Peminjam';
+
     return {
-      type: 'BORROW_UNKNOWN_TOOL',
+      type: 'BORROW_EXPRESS',
+      tool: matchedTool,
+      name,
       phone,
-      days,
-      rawText: text
+      days
     };
   }
 
-  // 5. Extract Borrower Name
-  let clean = text;
-  if (phoneMatch) clean = clean.replace(phoneMatch[0], ' ');
-  if (daysMatch) clean = clean.replace(daysMatch[0], ' ');
-  clean = clean.replace(new RegExp(matchedTool.name, 'gi'), ' ');
-  matchedTool.name.split(/\s+/).forEach(w => {
-    if (w.length >= 3) clean = clean.replace(new RegExp('\\b' + w + '\\b', 'gi'), ' ');
-  });
+  // 6. TOOL NOT FOUND IN DATABASE — Detect New Tool Candidates!
+  // Example pattern A: "Budi pinjam cangkul 3 hari nomor wa 0821..."
+  // Example pattern B: "pinjam cangkul untuk Budi 3 hari nomor wa 0821..."
+  // Example pattern C: "tambah cangkul ke gudang"
+  let candidateTool = '';
+  let candidateBorrower = '';
 
-  const stopWords = [
-    'pinjam', 'minjam', 'meminjam', 'sewa', 'ambil', 'butuh', 'pakai',
-    'mau', 'ingin', 'tolong', 'dong', 'bisa', 'kah', 'ya', 'nomor', 'no',
-    'wa', 'whatsapp', 'hp', 'nohp', 'telp', 'telepon', 'hari', 'hr',
-    'buat', 'untuk', 'atas', 'nama', 'peminjam', 'halo', 'hai', 'siang',
-    'pagi', 'sore', 'malam', 'permisi'
-  ];
-  stopWords.forEach(sw => {
-    clean = clean.replace(new RegExp('\\b' + sw + '\\b', 'gi'), ' ');
-  });
+  // Pattern A: [Nama] (pinjam|minjam|mau pinjam) [Alat]
+  const patternA = /([A-Za-z\s]+?)\s+(?:pinjam|minjam|mau pinjam|ingin pinjam)\s+([A-Za-z0-9\s]+?)(?:\s+\d+\s*hari|\s+wa|\s+nomor|\s+no|\s*$)/i;
+  const matchA = text.match(patternA);
 
-  // Extract clean alphabetical name
-  let name = clean.replace(/[^a-zA-Z\s]/g, ' ').replace(/\s+/g, ' ').trim();
-  
-  // Detect honorifics
-  const honorificMatch = text.match(/\b(pak|bu|bapak|ibu|mas|mbak)\s+([A-Za-z]+)/i);
-  if (honorificMatch) {
-    name = `${honorificMatch[1].charAt(0).toUpperCase() + honorificMatch[1].slice(1).toLowerCase()} ${honorificMatch[2].charAt(0).toUpperCase() + honorificMatch[2].slice(1).toLowerCase()}`;
-  } else if (name) {
-    name = name.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+  // Pattern B: (pinjam|minjam) [Alat] (untuk|buat|atas nama) [Nama]
+  const patternB = /(?:pinjam|minjam)\s+([A-Za-z0-9\s]+?)\s+(?:untuk|buat|atas nama)\s+([A-Za-z\s]+?)(?:\s+\d+\s*hari|\s+wa|\s+nomor|\s+no|\s*$)/i;
+  const matchB = text.match(patternB);
+
+  // Pattern C: (tambah|catat|daftarkan|masukkan) [Alat]
+  const patternC = /(?:tambah|catat|daftarkan|masukkan)\s+(?:alat\s+)?([A-Za-z0-9\s]+?)(?:\s+ke\s+rak|\s+baru|\s+gudang|\s*$)/i;
+  const matchC = text.match(patternC);
+
+  if (matchB) {
+    candidateTool = matchB[1].trim();
+    candidateBorrower = matchB[2].trim();
+  } else if (matchA) {
+    candidateBorrower = matchA[1].trim();
+    candidateTool = matchA[2].trim();
+  } else if (matchC) {
+    candidateTool = matchC[1].trim();
   }
 
-  if (!name || name.length < 2) {
-    name = 'Warga / Peminjam';
+  // Clean candidate tool
+  const toolStopWords = ['nomor', 'wa', 'no', 'hari', 'baru', 'untuk', 'buat', 'tolong'];
+  toolStopWords.forEach(sw => {
+    candidateTool = candidateTool.replace(new RegExp('\\b' + sw + '\\b.*$', 'gi'), '').trim();
+  });
+
+  if (candidateTool && candidateTool.length >= 3) {
+    // Capitalize tool name
+    const formattedToolName = candidateTool.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+    
+    // Capitalize borrower
+    let formattedBorrower = candidateBorrower.replace(/[^a-zA-Z\s]/g, '').trim();
+    if (formattedBorrower) {
+      formattedBorrower = formattedBorrower.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+    } else {
+      formattedBorrower = 'Warga / Peminjam';
+    }
+
+    if (hasBorrow) {
+      return {
+        type: 'BORROW_NEW_TOOL',
+        newToolName: formattedToolName,
+        name: formattedBorrower,
+        phone,
+        days,
+        category: guessToolCategory(formattedToolName)
+      };
+    } else {
+      return {
+        type: 'REGISTER_NEW_TOOL',
+        newToolName: formattedToolName,
+        category: guessToolCategory(formattedToolName)
+      };
+    }
   }
 
   return {
-    type: 'BORROW_EXPRESS',
-    tool: matchedTool,
-    name,
+    type: 'BORROW_UNKNOWN_TOOL',
     phone,
-    days
+    days,
+    rawText: text
   };
+}
+
+async function registerAndBorrowDirectly(toolName, category, photoUrl, borrowerName, borrowerPhone, borrowDays) {
+  const btn = document.getElementById('btn-reg-borrow-direct');
+  if (btn) {
+    btn.textContent = 'Mendaftarkan Alat & Memproses...';
+    btn.disabled = true;
+  }
+
+  const finalPhoto = photoUrl || getDefaultCategoryPhoto(category);
+
+  try {
+    // 1. Create tool in database
+    const createRes = await fetch('/api/items', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: toolName,
+        category: category,
+        power_watts: 0,
+        danger_level: 'SEDANG',
+        description: 'Didaftarkan instan via Asisten GudangLingling AI',
+        last_photo_url: finalPhoto
+      })
+    });
+    const createData = await createRes.json();
+    if (!createRes.ok || !createData.success) {
+      showToast(createData.error || 'Gagal mendaftarkan alat.', 'warn');
+      if (btn) { btn.textContent = '⚡ Daftarkan & Pinjamkan (1-Klik)'; btn.disabled = false; }
+      return;
+    }
+
+    const newItemId = createData.item_id;
+
+    // 2. Process borrowing wizard
+    const borrowRes = await fetch('/api/borrow/wizard', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        item_id: newItemId,
+        borrower_name: borrowerName,
+        borrower_phone: borrowerPhone,
+        borrow_days: borrowDays,
+        facts: {},
+        photo_url: finalPhoto
+      })
+    });
+    const borrowData = await borrowRes.json();
+
+    await loadAllData();
+
+    appendBotChat(`
+      <div style="background:var(--bg-surface);border:1.5px solid var(--green);border-radius:12px;padding:12px;margin-top:6px;">
+        <div style="display:flex;align-items:center;gap:6px;font-weight:800;color:var(--green-text);font-size:12.5px;">
+          <span class="status-pulse-dot green" style="position:static;"></span>
+          <span>ALAT BERHASIL DIDAFTARKAN &amp; DIPINJAMKAN!</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;margin:8px 0;background:var(--bg-app);padding:8px 10px;border-radius:8px;border:1px solid var(--border-subtle);">
+          <img src="${finalPhoto}" style="width:44px;height:44px;border-radius:6px;object-fit:cover;" onerror="this.onerror=null; this.src='/img/bor.svg';">
+          <div>
+            <div style="font-weight:700;font-size:13px;color:var(--text-primary);">${esc(toolName)}</div>
+            <div style="font-size:11px;color:var(--text-secondary);">${esc(category)} &bull; ${borrowDays} Hari</div>
+          </div>
+        </div>
+        <div style="font-size:12px;color:var(--text-primary);margin-bottom:8px;">
+          Peminjam: <strong>${esc(borrowerName)}</strong> (${borrowerPhone || 'Tanpa WA'})
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;">
+          <a href="${borrowData.whatsapp_url}" target="_blank" class="btn-act btn-whatsapp-action btn-sm" style="text-decoration:none;display:flex;justify-content:center;align-items:center;gap:6px;">
+            Kirim Bukti Serah Terima ke WhatsApp
+          </a>
+          <button class="btn-act btn-subtle-action btn-sm" onclick="closeChatDrawer()">Tutup Asisten</button>
+        </div>
+      </div>
+    `);
+    showToast(`Alat ${toolName} terdaftar & dipinjamkan ke ${borrowerName}!`, 'success');
+  } catch (err) {
+    showToast('Koneksi server gagal saat mendaftarkan alat.', 'warn');
+    if (btn) { btn.textContent = '⚡ Daftarkan & Pinjamkan (1-Klik)'; btn.disabled = false; }
+  }
+}
+
+async function registerToolOnly(toolName, category, photoUrl) {
+  const finalPhoto = photoUrl || getDefaultCategoryPhoto(category);
+  try {
+    const res = await fetch('/api/items', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: toolName,
+        category: category,
+        power_watts: 0,
+        danger_level: 'SEDANG',
+        description: 'Didaftarkan instan via Asisten GudangLingling AI',
+        last_photo_url: finalPhoto
+      })
+    });
+    const data = await res.json();
+    if (res.ok && data.success) {
+      await loadAllData();
+      appendBotChat(`
+        <div style="background:var(--bg-surface);border:1px solid var(--green-border);border-radius:10px;padding:10px;margin-top:6px;">
+          <strong style="color:var(--green-text);font-size:12.5px;">Alat Berhasil Ditambahkan ke Rak!</strong>
+          <div style="font-size:12px;color:var(--text-primary);margin-top:4px;">
+            <strong>${esc(toolName)}</strong> (${esc(category)}) sekarang berstatus <strong>Ready</strong> di inventaris.
+          </div>
+        </div>
+      `);
+      showToast(`${toolName} berhasil ditambahkan ke inventaris.`, 'success');
+    } else {
+      showToast(data.error || 'Gagal menambahkan alat.', 'warn');
+    }
+  } catch (err) {
+    showToast('Koneksi server gagal.', 'warn');
+  }
 }
 
 async function executeExpressBorrow(toolId, borrowerName, borrowerPhone, borrowDays) {
@@ -1689,17 +1943,34 @@ function openBorrowWizardWithData(toolId, name, phone, days) {
   }
 }
 
-// Conversational AI Parser (Intelligent Natural Responses)
-function processUserChatMessage(rawText) {
-  appendUserChat(rawText);
+// Conversational AI Parser (Intelligent Natural Responses & Photo Attachment)
+async function processUserChatMessage(rawText, photoBase64 = null) {
+  appendUserChat(rawText, photoBase64);
   showTypingIndicator();
 
-  const query = rawText.toLowerCase().trim();
+  // If photo is attached, upload in background to get permanent URL
+  let uploadedPhotoUrl = '';
+  if (photoBase64) {
+    try {
+      const res = await fetch('/api/upload-photo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image_data: photoBase64 })
+      });
+      const data = await res.json();
+      if (data.url) uploadedPhotoUrl = data.url;
+    } catch (err) {
+      console.warn('Photo upload in chat error:', err);
+    }
+  }
+
+  const query = (rawText || '').toLowerCase().trim();
 
   setTimeout(() => {
-    // 0. NATURAL LANGUAGE EXPRESS BORROWING (e.g. "Budi pinjam bor listrik 3 hari nomor wa 081212341234")
+    // 0. NATURAL LANGUAGE EXPRESS BORROWING (e.g. "Budi pinjam cangkul 3 hari nomor wa 082173399003")
     const borrowIntent = parseNaturalBorrowQuery(rawText);
     if (borrowIntent) {
+      // CASE A: Tool exists in warehouse
       if (borrowIntent.type === 'BORROW_EXPRESS') {
         const tool = borrowIntent.tool;
         const name = borrowIntent.name;
@@ -1735,7 +2006,7 @@ function processUserChatMessage(rawText) {
             </div>
 
             <div class="express-tool-row">
-              <img class="express-tool-thumb" src="${tool.last_photo_url || '/img/bor.svg'}" alt="${esc(tool.name)}" onerror="this.onerror=null; this.src='/img/bor.svg';">
+              <img class="express-tool-thumb" src="${uploadedPhotoUrl || tool.last_photo_url || '/img/bor.svg'}" alt="${esc(tool.name)}" onerror="this.onerror=null; this.src='/img/bor.svg';">
               <div>
                 <div style="font-weight:700;font-size:13px;color:var(--text-primary);">${esc(tool.name)}</div>
                 <div style="font-size:11px;color:var(--text-secondary);">${esc(tool.category)} &bull; ${tool.power_watts ? tool.power_watts + 'W' : 'Non-Listrik'}</div>
@@ -1773,7 +2044,97 @@ function processUserChatMessage(rawText) {
           </div>
         `);
         return;
-      } else if (borrowIntent.type === 'BORROW_UNKNOWN_TOOL') {
+      }
+
+      // CASE B: Tool is NOT YET in warehouse — Direct 1-Click Registration & Lending!
+      if (borrowIntent.type === 'BORROW_NEW_TOOL') {
+        const newTool = borrowIntent.newToolName;
+        const cat = borrowIntent.category;
+        const name = borrowIntent.name;
+        const phone = borrowIntent.phone;
+        const days = borrowIntent.days;
+        const displayPhoto = uploadedPhotoUrl || getDefaultCategoryPhoto(cat);
+
+        appendBotChat(`
+          <div class="chat-new-tool-card">
+            <div class="express-header">
+              <span class="new-tool-tag">+ Alat Baru Terdeteksi</span>
+              <span class="status-pulse-dot yellow" style="position:static;"></span>
+            </div>
+
+            <div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px;line-height:1.45;">
+              Alat <strong>"${esc(newTool)}"</strong> belum ada di inventaris gudang.<br>
+              ${uploadedPhotoUrl ? 'Foto alat telah terlampir!' : 'Foto default telah disiapkan.'} Ingin langsung mendaftarkannya &amp; mencatat peminjaman untuk <strong>${esc(name)}</strong>?
+            </div>
+
+            <div class="express-tool-row">
+              <img class="express-tool-thumb" src="${displayPhoto}" alt="${esc(newTool)}" onerror="this.onerror=null; this.src='/img/toolset.svg';">
+              <div style="flex:1;">
+                <div style="font-weight:700;font-size:13px;color:var(--text-primary);">${esc(newTool)}</div>
+                <div style="font-size:11px;color:var(--text-secondary);">Kategori: <strong>${esc(cat)}</strong></div>
+              </div>
+            </div>
+
+            <div class="express-data-grid">
+              <div class="express-data-item">
+                <div class="express-data-lbl">Peminjam</div>
+                <div class="express-data-val">${esc(name)}</div>
+              </div>
+              <div class="express-data-item">
+                <div class="express-data-lbl">Durasi Pinjam</div>
+                <div class="express-data-val">${days} Hari</div>
+              </div>
+              <div class="express-data-item" style="grid-column:span 2;">
+                <div class="express-data-lbl">WhatsApp</div>
+                <div class="express-data-val">${phone ? esc(phone) : '<span style="color:var(--text-muted);font-weight:normal;">Belum dicantumkan</span>'}</div>
+              </div>
+            </div>
+
+            <div class="express-actions-col">
+              <button class="btn-act btn-primary-action btn-sm" id="btn-reg-borrow-direct" onclick="registerAndBorrowDirectly('${esc(newTool)}', '${esc(cat)}', '${uploadedPhotoUrl}', '${esc(name)}', '${esc(phone)}', ${days})">
+                ⚡ Daftarkan &amp; Pinjamkan ke ${esc(name)} Langsung (1-Klik)
+              </button>
+              <button class="btn-act btn-subtle-action btn-sm" onclick="registerToolOnly('${esc(newTool)}', '${esc(cat)}', '${uploadedPhotoUrl}')">
+                + Daftarkan Sebagai Alat Tersedia Saja (Ready)
+              </button>
+            </div>
+          </div>
+        `);
+        return;
+      }
+
+      // CASE C: Register new tool without borrowing
+      if (borrowIntent.type === 'REGISTER_NEW_TOOL') {
+        const newTool = borrowIntent.newToolName;
+        const cat = borrowIntent.category;
+        const displayPhoto = uploadedPhotoUrl || getDefaultCategoryPhoto(cat);
+
+        appendBotChat(`
+          <div class="chat-new-tool-card">
+            <div class="express-header">
+              <span class="new-tool-tag">+ Tambah Alat Baru</span>
+              <span class="status-pulse-dot green" style="position:static;"></span>
+            </div>
+            <div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px;">
+              Daftarkan <strong>"${esc(newTool)}"</strong> ke rak inventaris gudang?
+            </div>
+            <div class="express-tool-row">
+              <img class="express-tool-thumb" src="${displayPhoto}" alt="${esc(newTool)}">
+              <div style="flex:1;">
+                <div style="font-weight:700;font-size:13px;color:var(--text-primary);">${esc(newTool)}</div>
+                <div style="font-size:11px;color:var(--text-secondary);">Kategori Rekomendasi: <strong>${esc(cat)}</strong></div>
+              </div>
+            </div>
+            <button class="btn-act btn-primary-action btn-sm" onclick="registerToolOnly('${esc(newTool)}', '${esc(cat)}', '${uploadedPhotoUrl}')">
+              + Daftarkan ${esc(newTool)} Sekarang
+            </button>
+          </div>
+        `);
+        return;
+      }
+
+      // CASE D: Unknown tool name
+      if (borrowIntent.type === 'BORROW_UNKNOWN_TOOL') {
         const available = (state.items || []).filter(it => it.status === 'AVAILABLE');
         const listHtml = available.map(t => `
           <button class="chat-quick-btn" onclick="sendSuggestedQuery('${borrowIntent.rawText.replace(/pinjam/gi, '').trim()} pinjam ${t.name}')">
@@ -1790,6 +2151,36 @@ function processUserChatMessage(rawText) {
         `);
         return;
       }
+    }
+
+    // 0B. If user sent a photo with short text (e.g. photo + "cangkul")
+    if (uploadedPhotoUrl && query && query.length <= 25 && !query.includes('aturan') && !query.includes('siapa')) {
+      const guessedCat = guessToolCategory(rawText);
+      const formattedName = rawText.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+      appendBotChat(`
+        <div class="chat-new-tool-card">
+          <div class="express-header">
+            <span class="new-tool-tag">+ Daftarkan Alat Baru</span>
+            <span class="status-pulse-dot green" style="position:static;"></span>
+          </div>
+          <div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px;">
+            Foto telah terunggah. Daftarkan <strong>${esc(formattedName)}</strong> ke rak gudang?
+          </div>
+          <div class="express-tool-row">
+            <img class="express-tool-thumb" src="${uploadedPhotoUrl}" alt="${esc(formattedName)}">
+            <div>
+              <div style="font-weight:700;font-size:13px;color:var(--text-primary);">${esc(formattedName)}</div>
+              <div style="font-size:11px;color:var(--text-secondary);">Kategori: <strong>${esc(guessedCat)}</strong></div>
+            </div>
+          </div>
+          <div style="display:flex;gap:6px;margin-top:6px;">
+            <button class="btn-act btn-primary-action btn-sm" onclick="registerToolOnly('${esc(formattedName)}', '${esc(guessedCat)}', '${uploadedPhotoUrl}')">
+              + Simpan ke Inventaris
+            </button>
+          </div>
+        </div>
+      `);
+      return;
     }
 
     // 1. Intent: Siapa Pengembang / Info Akademik
