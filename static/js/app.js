@@ -361,6 +361,9 @@ function enterOperationalSession(operatorName, displayName) {
 
   syncProfileHeaderUI();
   updateDynamicGreeting();
+  if (!window.__greetingTimer) {
+    window.__greetingTimer = setInterval(updateDynamicGreeting, 60000);
+  }
   updateHeaderStatus();
   loadAllData();
   if (chatDrawerBody && chatDrawerBody.children.length === 0) {
