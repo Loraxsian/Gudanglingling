@@ -8,7 +8,7 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32x32.png">
   <link rel="icon" type="image/png" sizes="64x64" href="/img/favicon-64x64.png">
   <link rel="apple-touch-icon" href="/img/logo-emblem.png">
-  <link rel="stylesheet" href="/css/style.css?v=1.0.1">
+  <link rel="stylesheet" href="/css/style.css?v=1.0.2">
 </head>
 <body>
 
@@ -108,6 +108,10 @@
               <span>⚙️</span>
               <span>Atur Profil &amp; Sapaan</span>
             </button>
+            <button type="button" class="profile-drop-item" onclick="openUserLogsModal()">
+              <span>📋</span>
+              <span>Log Aktivitas User (14 Hari)</span>
+            </button>
             <div class="profile-drop-divider"></div>
             <button type="button" class="profile-drop-item danger" onclick="handleLogout()">
               <span>🚪</span>
@@ -175,21 +179,8 @@
           <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>
           </svg>
-          <input type="text" id="search-input" class="search-input" placeholder="Cari nama alat atau spesifikasi daya...">
+          <input type="text" id="search-input" class="search-input" placeholder="Cari nama barang atau kategori...">
           <button id="search-clear-btn" class="search-clear-btn" style="display:none;" onclick="clearSearch()">&times;</button>
-        </div>
-
-        <!-- Quick Keyword Chips -->
-        <div class="quick-keywords-row">
-          <span class="quick-keywords-label">Paling Sering:</span>
-          <div class="quick-chips-wrap">
-            <button class="quick-chip" onclick="applyQuickKeyword('Bor')">Bor</button>
-            <button class="quick-chip" onclick="applyQuickKeyword('Tangga')">Tangga</button>
-            <button class="quick-chip" onclick="applyQuickKeyword('Gerinda')">Gerinda</button>
-            <button class="quick-chip" onclick="applyQuickKeyword('Rumput')">Rumput</button>
-            <button class="quick-chip" onclick="applyQuickKeyword('Jet Cleaner')">Jet Cleaner</button>
-            <button class="quick-chip" onclick="applyQuickKeyword('Obeng')">Obeng</button>
-          </div>
         </div>
 
         <!-- Interactive Category Pills Carousel -->
@@ -198,29 +189,29 @@
             <span class="cat-pill-icon">&#9638;</span>
             <span>Semua</span>
           </button>
-          <button class="cat-pill" data-cat="Pertukangan Listrik">
+          <button class="cat-pill" data-cat="Rumah Tangga & Acara">
+            <span class="cat-pill-icon">&#127968;</span>
+            <span>Rumah Tangga</span>
+          </button>
+          <button class="cat-pill" data-cat="Perkakas & Tukang">
+            <span class="cat-pill-icon">&#9881;</span>
+            <span>Perkakas</span>
+          </button>
+          <button class="cat-pill" data-cat="Alat Listrik & Mesin">
             <span class="cat-pill-icon">&#9889;</span>
-            <span>Listrik</span>
+            <span>Listrik & Mesin</span>
           </button>
-          <button class="cat-pill" data-cat="Perkebunan">
+          <button class="cat-pill" data-cat="Taman & Kebersihan">
             <span class="cat-pill-icon">&#10047;</span>
-            <span>Kebun</span>
+            <span>Taman</span>
           </button>
-          <button class="cat-pill" data-cat="Akses Ketinggian">
+          <button class="cat-pill" data-cat="Tangga & Angkut">
             <span class="cat-pill-icon">&#9650;</span>
             <span>Tangga</span>
           </button>
-          <button class="cat-pill" data-cat="Peralatan Air & Cuci">
-            <span class="cat-pill-icon">&#9874;</span>
-            <span>Air & Cuci</span>
-          </button>
-          <button class="cat-pill" data-cat="Pertukangan Ringan">
-            <span class="cat-pill-icon">&#9881;</span>
-            <span>Ringan</span>
-          </button>
-          <button class="cat-pill" data-cat="Perkakas Manual">
+          <button class="cat-pill" data-cat="Lainnya">
             <span class="cat-pill-icon">&#9776;</span>
-            <span>Manual</span>
+            <span>Lainnya</span>
           </button>
         </div>
       </div>
@@ -610,22 +601,21 @@
           <input type="text" id="add-item-name" class="form-input" placeholder="Contoh: Bor Listrik Bosch 500W" required>
         </div>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
-          <div>
-            <label class="form-label">Kategori *</label>
-            <select id="add-item-category" class="form-select">
-              <option value="Pertukangan Listrik">Pertukangan Listrik</option>
-              <option value="Perkebunan">Perkebunan</option>
-              <option value="Akses Ketinggian">Akses Ketinggian</option>
-              <option value="Peralatan Air & Cuci">Peralatan Air & Cuci</option>
-              <option value="Pertukangan Ringan">Pertukangan Ringan</option>
-              <option value="Perkakas Manual">Perkakas Manual</option>
-            </select>
-          </div>
-          <div>
-            <label class="form-label">Daya Listrik (Watt)</label>
-            <input type="number" id="add-item-power" class="form-input" placeholder="0 jika manual" min="0" value="0">
-          </div>
+        <div style="margin-bottom:10px;">
+          <label class="form-label">Kategori *</label>
+          <select id="add-item-category" class="form-select" onchange="toggleAddItemPowerField()">
+            <option value="Rumah Tangga & Acara">Rumah Tangga & Acara</option>
+            <option value="Perkakas & Tukang">Perkakas & Tukang</option>
+            <option value="Alat Listrik & Mesin">Alat Listrik & Mesin</option>
+            <option value="Taman & Kebersihan">Taman & Kebersihan</option>
+            <option value="Tangga & Angkut">Tangga & Angkut</option>
+            <option value="Lainnya">Lainnya</option>
+          </select>
+        </div>
+
+        <div id="add-item-power-group" style="display:none;margin-bottom:10px;">
+          <label class="form-label">Daya Listrik (Watt, Opsional)</label>
+          <input type="number" id="add-item-power" class="form-input" placeholder="Kosongkan jika tidak diketahui" min="0" value="0">
         </div>
 
         <div style="margin-bottom:10px;">
@@ -833,6 +823,37 @@
 </div>
 
 <!-- ==================== INTERACTIVE ASSET DETAIL & HISTORY MODAL ==================== -->
+<div class="card-quickview-overlay" id="modal-card-quickview" onclick="closeCardQuickView()">
+  <div class="card-quickview-dialog" id="card-quickview-dialog">
+    <!-- Populated dynamically by JS -->
+  </div>
+</div>
+
+<!-- Compact In-App Confirm Modal -->
+<div class="app-confirm-overlay" id="modal-app-confirm" onclick="if(event.target === this) closeAppConfirm();">
+  <div class="app-confirm-dialog">
+    <div class="app-confirm-title" id="app-confirm-title">Konfirmasi</div>
+    <div class="app-confirm-msg" id="app-confirm-msg">Apakah Anda yakin ingin melanjutkan?</div>
+    <div class="app-confirm-actions">
+      <button type="button" class="btn-act btn-subtle-action btn-sm" style="flex:1;" onclick="closeAppConfirm()">Batal</button>
+      <button type="button" class="btn-act btn-primary-action btn-sm" id="app-confirm-ok-btn" style="flex:1;">Ya, Lanjutkan</button>
+    </div>
+  </div>
+</div>
+
+<!-- User Activity Logs Modal (14 Days) -->
+<div class="modal-overlay" id="modal-user-logs">
+  <div class="modal-dialog" style="max-width:440px;">
+    <div class="modal-dialog-header">
+      <strong style="font-size:14px;">📋 Log Aktivitas User (14 Hari Terakhir)</strong>
+      <button class="btn-drawer" onclick="closeUserLogsModal()">&times;</button>
+    </div>
+    <div class="modal-dialog-body" id="user-logs-modal-body" style="max-height:65vh;overflow-y:auto;">
+      <!-- Populated dynamically by JS -->
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-asset-detail">
   <div class="modal-dialog">
     <div class="modal-dialog-header">
@@ -941,6 +962,6 @@
 <!-- ==================== TOAST NOTIFICATION CONTAINER ==================== -->
 <div class="app-toast" id="app-toast"></div>
 
-<script src="/js/app.js?v=1.0.1"></script>
+<script src="/js/app.js?v=1.0.2"></script>
 </body>
 </html>

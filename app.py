@@ -47,7 +47,12 @@ from database.db import (
     get_auth_status,
     verify_user_credentials,
     change_user_password,
-    update_user_profile
+    update_user_profile,
+    log_user_activity,
+    get_user_activity_logs,
+    create_session_token,
+    verify_session_token,
+    revoke_session_token
 )
 from database.seed import seed_database  # Hanya panggil init_db() — tidak insert data
 from engine.state_space import StateSpaceSession, CF_OPTIONS
@@ -156,7 +161,13 @@ def validate_borrow_duration(item, borrow_days: int):
     power = int(item.get("power_watts") or 0)
     danger = (item.get("danger_level") or "SEDANG").upper()
 
-    heavy_categories = {"Pertukangan Listrik", "Akses Ketinggian", "Peralatan Air & Cuci"}
+    heavy_categories = {
+        "Alat Listrik & Mesin",
+        "Tangga & Angkut",
+        "Pertukangan Listrik",
+        "Akses Ketinggian",
+        "Peralatan Air & Cuci",
+    }
     if cat in heavy_categories or power > 0 or danger in ("TINGGI", "SANGAT TINGGI"):
         max_days = 3
     else:
@@ -181,8 +192,25 @@ class GudangLinglingRequestHandler(BaseHTTPRequestHandler):
         # Header CORS agar aman jika diakses dari frontend terpisah
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Auth-Token")
         super().end_headers()
+
+    def _extract_auth_token(self):
+        auth_header = (self.headers.get("Authorization") or "").strip()
+        if auth_header.lower().startswith("bearer "):
+            return auth_header[7:].strip()
+        return (self.headers.get("X-Auth-Token") or "").strip()
+
+    def _require_auth(self):
+        token = self._extract_auth_token()
+        session = verify_session_token(token)
+        if not session:
+            self._send_json({
+                "error": "Sesi login tidak valid atau telah berakhir. Silakan login kembali.",
+                "auth_required": True
+            }, 401)
+            return None
+        return session
 
     def do_OPTIONS(self):
         self.send_response(204)
@@ -286,6 +314,14 @@ class GudangLinglingRequestHandler(BaseHTTPRequestHandler):
             self._send_json({"history": history})
             return
 
+        # 4B. API: Log Aktivitas User (Login & Kelola Barang, 14 Hari Terakhir)
+        if path == "/api/user-logs":
+            if not self._require_auth():
+                return
+            logs = get_user_activity_logs(days=14)
+            self._send_json({"logs": logs})
+            return
+
         # 5. API: Detail Peminjaman Tertentu /api/borrow-record/<id>
         if path.startswith("/api/borrow-record/"):
             parts = path.strip("/").split("/")
@@ -365,6 +401,29 @@ class GudangLinglingRequestHandler(BaseHTTPRequestHandler):
         path = parsed.path
         body = self._read_json_body()
 
+        protected_post_paths = {
+            "/api/auth/change-password",
+            "/api/auth/profile",
+            "/api/version-update",
+            "/api/upload-photo",
+            "/api/borrow/confirm",
+            "/api/borrow/wizard",
+            "/api/borrow/return-check",
+            "/api/archive-receipt",
+            "/api/items/unlock",
+            "/api/items",
+            "/api/items/create",
+            "/api/items/delete",
+        }
+        if path in protected_post_paths:
+            if not self._require_auth():
+                return
+
+        if path == "/api/logout":
+            revoke_session_token(self._extract_auth_token())
+            self._send_json({"success": True})
+            return
+
         # 1. API: Autentikasi Username/Password & PIN S0 (dengan Proteksi Anti-Brute Force)
         if path == "/api/auth":
             client_ip = self.client_address[0] if self.client_address else "unknown"
@@ -394,9 +453,12 @@ class GudangLinglingRequestHandler(BaseHTTPRequestHandler):
                     session.is_authenticated = True
                     session.current_state = "S1_TOOL_SELECTION"
                     ACTIVE_SESSIONS[session_id] = session
+                    log_user_activity(user["display_name"], "LOGIN", f"Login berhasil ({user['username']})", client_ip)
+                    auth_token = create_session_token(user["display_name"])
                     self._send_json({
                         "success": True,
                         "session_id": session_id,
+                        "auth_token": auth_token,
                         "operator_name": user["username"],
                         "display_name": user["display_name"],
                         "must_change_password": user["is_default_password"],
@@ -412,12 +474,16 @@ class GudangLinglingRequestHandler(BaseHTTPRequestHandler):
                     LOGIN_ATTEMPTS.pop(client_ip, None)
                     ACTIVE_SESSIONS[session_id] = session
                     auth_res["session_id"] = session_id
-                    auth_res["operator_name"] = (body.get("operator_name") or "").strip() or "Andrian"
+                    op_name = (body.get("operator_name") or "").strip() or "Andrian"
+                    auth_res["operator_name"] = op_name
                     auth_res["must_change_password"] = False
+                    auth_res["auth_token"] = create_session_token(op_name)
+                    log_user_activity(op_name, "LOGIN", "Login dengan PIN akses", client_ip)
                     self._send_json(auth_res, 200)
                     return
 
             if not auth_ok:
+                log_user_activity(username or "Unknown", "LOGIN_GAGAL", "Percobaan login gagal", client_ip)
                 fails = attempt_info["fails"] + 1
                 if fails >= MAX_LOGIN_ATTEMPTS:
                     LOGIN_ATTEMPTS[client_ip] = {"fails": fails, "locked_until": now + LOCKOUT_SECONDS}
@@ -706,13 +772,18 @@ class GudangLinglingRequestHandler(BaseHTTPRequestHandler):
                 self._send_json({"error": "Peralatan tidak ditemukan."}, 404)
                 return
 
+            if item.get("status") != "AVAILABLE":
+                status_msg = "Barang sedang dipinjam warga lain." if item.get("status") == "BORROWED" else "Barang sedang terkunci karantina servis."
+                self._send_json({"error": status_msg}, 409)
+                return
+
             dur_ok, dur_err, max_days = validate_borrow_duration(item, borrow_days)
             if not dur_ok:
                 self._send_json({"error": dur_err, "max_days": max_days}, 400)
                 return
 
             # Evaluasi Sistem Pakar AI di latar belakang
-            heuristic_res = HeuristicRiskEngine.evaluate_risk(facts_input)
+            heuristic_res = HeuristicRiskEngine.evaluate_risk(facts_input, item=item)
             inference_res = ForwardChainingEngine.infer(facts_input)
 
             zone = heuristic_res["zone"]
@@ -752,11 +823,23 @@ class GudangLinglingRequestHandler(BaseHTTPRequestHandler):
             if clean_phone.startswith("0"):
                 clean_phone = "62" + clean_phone[1:]
 
-            wa_msg = f"Halo *{borrower_name}*,\n"
-            wa_msg += f"Peminjaman alat *{item['name']}* selama *{borrow_days} hari* sudah dicatat di GudangLingling.\n\n"
-            wa_msg += f"Status kondisi: *{decision_name}* ({heuristic_res.get('zone_label', zone)}, skor risiko {h_score}/100).\n"
-            wa_msg += f"Catatan pemakaian: {heuristic_res.get('safety_advice', 'Alat aman digunakan.')}\n\n"
-            wa_msg += f"Mohon dijaga baik-baik dan dikembalikan tepat waktu ya. Terima kasih!"
+            display_borrower = " ".join(w[:1].upper() + w[1:] for w in borrower_name.split())
+            if zone == "GREEN":
+                wa_status = "Baik & Layak Pakai (Aman)"
+            elif zone == "YELLOW":
+                wa_status = "Layak Pakai (Perlu Perhatian)"
+            else:
+                wa_status = "Tidak Layak Pakai (Perlu Servis)"
+
+            advice_text = heuristic_res.get("safety_advice", "Barang dalam kondisi baik dan layak pakai.")
+
+            wa_msg = f"Halo *{display_borrower}* 👋\n\n"
+            wa_msg += "Peminjaman barang di *GudangLingling* sudah tercatat dengan detail berikut:\n\n"
+            wa_msg += f"• *Barang:* {item['name']}\n"
+            wa_msg += f"• *Durasi:* {borrow_days} hari\n"
+            wa_msg += f"• *Status Kondisi:* {wa_status}\n"
+            wa_msg += f"• *Catatan:* {advice_text}\n\n"
+            wa_msg += "Mohon dijaga baik-baik dan dikembalikan tepat waktu ya. Terima kasih! 🙏"
 
             encoded_wa = quote(wa_msg)
             wa_url = f"https://wa.me/{clean_phone}?text={encoded_wa}" if clean_phone else f"https://wa.me/?text={encoded_wa}"
@@ -819,7 +902,13 @@ class GudangLinglingRequestHandler(BaseHTTPRequestHandler):
             if not item_id:
                 self._send_json({"error": "item_id diperlukan"}, 400)
                 return
+            item = get_item_by_id(int(item_id))
             success = unlock_maintenance_item(int(item_id))
+            if success:
+                actor = get_auth_status().get("display_name") or "Pengurus"
+                client_ip = self.client_address[0] if self.client_address else ""
+                item_label = item["name"] if item else f"Alat #{item_id}"
+                log_user_activity(actor, "BUKA_KUNCI", f"Membuka kunci servis: {item_label}", client_ip)
             self._send_json({"success": success, "message": "Alat telah diverifikasi selesai diservis dan kembali tersedia."})
             return
 
@@ -830,6 +919,10 @@ class GudangLinglingRequestHandler(BaseHTTPRequestHandler):
                 self._send_json({"error": "Nama alat wajib diisi"}, 400)
                 return
             item_id = add_item(body)
+            actor = get_auth_status().get("display_name") or "Pengurus"
+            client_ip = self.client_address[0] if self.client_address else ""
+            cat = (body.get("category") or "-").strip()
+            log_user_activity(actor, "TAMBAH_BARANG", f"Menambah barang: {name} ({cat})", client_ip)
             self._send_json({"success": True, "item_id": item_id, "message": "Alat berhasil ditambahkan ke inventaris."})
             return
 
@@ -839,7 +932,13 @@ class GudangLinglingRequestHandler(BaseHTTPRequestHandler):
             if not item_id:
                 self._send_json({"error": "item_id diperlukan"}, 400)
                 return
+            item = get_item_by_id(int(item_id))
             success = delete_item(int(item_id))
+            if success:
+                actor = get_auth_status().get("display_name") or "Pengurus"
+                client_ip = self.client_address[0] if self.client_address else ""
+                item_label = item["name"] if item else f"Alat #{item_id}"
+                log_user_activity(actor, "HAPUS_BARANG", f"Menghapus barang: {item_label}", client_ip)
             self._send_json({"success": success, "message": "Alat berhasil dihapus dari inventaris."})
             return
 

@@ -6,6 +6,7 @@
 
 const state = {
   sessionId: null,
+  authToken: '',
   isAuthenticated: false,
   operatorName: 'lingling',
   displayName: 'Kak Ling',
@@ -34,6 +35,32 @@ const btnMinimizeChat   = document.getElementById('btn-minimize-chat');
 const btnRestartChat    = document.getElementById('btn-restart-chat');
 const modalReturnCheck  = document.getElementById('modal-return-check');
 
+// Attach persistent auth_token automatically to same-origin /api/ requests
+if (typeof window !== 'undefined' && typeof window.fetch === 'function') {
+  const _rawFetch = window.fetch.bind(window);
+  window.fetch = async function(input, init = {}) {
+    const url = typeof input === 'string' ? input : (input && input.url) || '';
+    if (url.startsWith('/api/')) {
+      const token = sessionStorage.getItem('gl_auth_token') || state.authToken || '';
+      if (token) {
+        init = Object.assign({}, init);
+        init.headers = Object.assign({}, init.headers || {}, { 'Authorization': `Bearer ${token}` });
+      }
+    }
+    const res = await _rawFetch(input, init);
+    if (res.status === 401 && url.startsWith('/api/') && !url.startsWith('/api/auth')) {
+      sessionStorage.removeItem('gl_auth_session');
+      sessionStorage.removeItem('gl_auth_token');
+      state.isAuthenticated = false;
+      state.authToken = '';
+      const gate = document.getElementById('login-gate');
+      if (gate) gate.style.display = 'flex';
+      if (typeof showToast === 'function') showToast('Sesi login berakhir. Silakan masuk kembali.', 'warn');
+    }
+    return res;
+  };
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   initTheme();
   setupNavigation();
@@ -41,13 +68,17 @@ document.addEventListener('DOMContentLoaded', () => {
   setupChatDrawer();
 
   const savedSession = sessionStorage.getItem('gl_auth_session');
+  const savedToken = sessionStorage.getItem('gl_auth_token');
   const savedOperator = sessionStorage.getItem('gl_operator_name') || 'lingling';
   const savedDisplay = sessionStorage.getItem('gl_display_name') || 'Kak Ling';
-  if (savedSession) {
+  if (savedSession && savedToken) {
     state.sessionId = savedSession;
+    state.authToken = savedToken;
     state.isAuthenticated = true;
     enterOperationalSession(savedOperator, savedDisplay);
   } else {
+    sessionStorage.removeItem('gl_auth_session');
+    sessionStorage.removeItem('gl_auth_token');
     checkDefaultPasswordNote();
     const userInput = document.getElementById('login-operator-input');
     if (userInput) userInput.focus();
@@ -176,8 +207,13 @@ async function handleLandingLogin(e) {
       }
 
       if (data.must_change_password) {
+        if (data.auth_token) {
+          state.authToken = data.auth_token;
+          sessionStorage.setItem('gl_auth_token', data.auth_token);
+        }
         pendingAuthSession = {
           sessionId: data.session_id,
+          authToken: data.auth_token || '',
           operatorName: data.operator_name || username,
           displayName: data.display_name || 'Kak Ling'
         };
@@ -187,8 +223,10 @@ async function handleLandingLogin(e) {
 
       const dName = data.display_name || data.operator_name || 'Kak Ling';
       state.sessionId = data.session_id;
+      state.authToken = data.auth_token || '';
       state.isAuthenticated = true;
       sessionStorage.setItem('gl_auth_session', data.session_id);
+      if (data.auth_token) sessionStorage.setItem('gl_auth_token', data.auth_token);
       sessionStorage.setItem('gl_operator_name', data.operator_name || username);
       sessionStorage.setItem('gl_display_name', dName);
       enterOperationalSession(data.operator_name || username, dName);
@@ -299,10 +337,13 @@ async function handleChangeDefaultPassword(e) {
     if (modal) modal.classList.remove('open');
 
     const sessId = (pendingAuthSession && pendingAuthSession.sessionId) || '';
+    const authTok = (pendingAuthSession && pendingAuthSession.authToken) || state.authToken || '';
     const dName = (pendingAuthSession && pendingAuthSession.displayName) || 'Kak Ling';
     state.sessionId = sessId;
+    state.authToken = authTok;
     state.isAuthenticated = true;
     sessionStorage.setItem('gl_auth_session', sessId);
+    if (authTok) sessionStorage.setItem('gl_auth_token', authTok);
     sessionStorage.setItem('gl_operator_name', username);
     sessionStorage.setItem('gl_display_name', dName);
     pendingAuthSession = null;
@@ -553,10 +594,16 @@ async function handleSaveProfile(e) {
 function handleLogout() {
   const dd = document.getElementById('profile-dropdown');
   if (dd) dd.classList.remove('open');
+  const tok = sessionStorage.getItem('gl_auth_token') || state.authToken || '';
+  if (tok) {
+    fetch('/api/logout', { method: 'POST' }).catch(() => {});
+  }
   sessionStorage.removeItem('gl_auth_session');
+  sessionStorage.removeItem('gl_auth_token');
   sessionStorage.removeItem('gl_operator_name');
   sessionStorage.removeItem('gl_display_name');
   state.sessionId = null;
+  state.authToken = '';
   state.isAuthenticated = false;
   closeChatDrawer();
 
@@ -857,23 +904,6 @@ function setupChatDrawer() {
       closeChatDrawer();
     });
   }
-
-  const restartBtn = document.getElementById('btn-restart-chat');
-  if (restartBtn) {
-    restartBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      if (confirm('Mulai ulang percakapan chatbot dari awal?')) {
-        chatDrawerBody.innerHTML = '';
-        state.sessionId = null;
-        state.isAuthenticated = false;
-        state.selectedItem = null;
-        state.currentPhotoUrl = '';
-        state.collectedFacts = {};
-        state.lastResult = null;
-        startChatSession();
-      }
-    });
-  }
 }
 
 function openChatWithItem(itemId) {
@@ -949,6 +979,25 @@ async function loadEmailLogs() {
 // ============================================================
 // 4. MENU 1: BERANDA (Dashboard & Inventaris Visual)
 // ============================================================
+const LEGACY_CATEGORY_MAP = {
+  'Pertukangan Listrik': 'Alat Listrik & Mesin',
+  'Peralatan Air & Cuci': 'Alat Listrik & Mesin',
+  'Pertukangan Ringan': 'Perkakas & Tukang',
+  'Perkakas Manual': 'Perkakas & Tukang',
+  'Perkebunan': 'Taman & Kebersihan',
+  'Akses Ketinggian': 'Tangga & Angkut'
+};
+
+function normalizeCategory(cat) {
+  const c = (cat || '').trim();
+  return LEGACY_CATEGORY_MAP[c] || c;
+}
+
+function formatItemMeta(item) {
+  if (!item) return '';
+  return item.power_watts > 0 ? `${item.category} • ${item.power_watts}W` : item.category;
+}
+
 function renderBeranda() {
   const searchVal = document.getElementById('search-input').value.toLowerCase().trim();
   const catVal = state.activeCategory || 'ALL';
@@ -976,7 +1025,7 @@ function renderBeranda() {
       it.name.toLowerCase().includes(searchVal) ||
       it.category.toLowerCase().includes(searchVal) ||
       (it.description || '').toLowerCase().includes(searchVal);
-    const matchCat = catVal === 'ALL' || it.category === catVal;
+    const matchCat = catVal === 'ALL' || it.category === catVal || normalizeCategory(it.category) === catVal;
     return matchSearch && matchCat;
   });
 
@@ -1105,28 +1154,216 @@ function renderBeranda() {
         </div>
       </div>
     `;
+    card.addEventListener('click', (e) => {
+      if (e.target.closest('button, a')) return;
+      openCardQuickView(it.id);
+    });
     container.appendChild(card);
   });
 }
 
-async function unlockTool(itemId) {
-  if (!confirm('Konfirmasi bahwa alat ini telah selesai diperbaiki dan aman digunakan kembali?')) return;
-  try {
-    const res = await fetch('/api/items/unlock', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ item_id: itemId })
-    });
-    if (res.ok) {
-      showToast('Alat berhasil dibuka kunci dan kembali tersedia.', 'success');
-      await loadItems();
-      renderBeranda();
-    } else {
-      showToast('Gagal membuka kunci alat.', 'warn');
-    }
-  } catch (err) {
-    showToast('Gagal menghubungi server.', 'warn');
+function openCardQuickView(itemId) {
+  const item = state.items.find(i => i.id === itemId);
+  const overlay = document.getElementById('modal-card-quickview');
+  const dialog = document.getElementById('card-quickview-dialog');
+  if (!item || !overlay || !dialog) return;
+
+  const photoUrl = item.last_photo_url || getDefaultCategoryPhoto(item.category);
+  const badgeLabel = item.status === 'AVAILABLE' ? 'Ready'
+                   : item.status === 'BORROWED' ? 'Dipinjam' : 'Lockout';
+  const badgeDotColor = item.status === 'AVAILABLE' ? 'green'
+                      : item.status === 'BORROWED' ? 'yellow' : 'red';
+  const maxDays = getMaxBorrowDays(item);
+
+  let activityText = 'Belum pernah dipinjam';
+  if (item.status === 'BORROWED' && item.active_borrower) {
+    activityText = `Sedang dipinjam oleh ${esc(item.active_borrower)} (${item.active_borrow_days || 1} hari)`;
+  } else if (item.last_borrower) {
+    activityText = `Terakhir dipinjam oleh ${esc(item.last_borrower)}`;
   }
+
+  dialog.innerHTML = `
+    <div class="card-quickview-img-wrap">
+      <img class="card-quickview-img" src="${photoUrl}" alt="${esc(item.name)}" onerror="this.onerror=null; this.src='/img/bor.svg';">
+      <span class="asset-badge ${item.status}">
+        <span class="status-pulse-dot ${badgeDotColor}"></span>
+        ${badgeLabel}
+      </span>
+      ${item.power_watts > 0 ? `<span style="position:absolute;bottom:10px;left:10px;font-size:11px;font-weight:700;background:rgba(0,0,0,0.65);color:#e2e8f0;padding:3px 8px;border-radius:6px;backdrop-filter:blur(4px);">${item.power_watts}W</span>` : ''}
+    </div>
+    <div class="card-quickview-body">
+      <div>
+        <div style="font-size:16px;font-weight:800;color:var(--text-primary);line-height:1.3;">${esc(item.name)}</div>
+        <div style="font-size:12px;color:var(--text-secondary);margin-top:2px;">${esc(formatItemMeta(item))} • Maks. ${maxDays} hari</div>
+      </div>
+      <div style="font-size:12.5px;color:var(--text-secondary);line-height:1.5;background:var(--bg-app);padding:10px 12px;border-radius:10px;border:1px solid var(--border-subtle);">
+        ${esc(item.description || 'Barang dalam kondisi baik dan siap digunakan sesuai kebutuhan warga.')}
+      </div>
+      <div style="font-size:12px;color:var(--text-secondary);display:flex;align-items:center;gap:6px;">
+        <span class="status-pulse-dot ${badgeDotColor}" style="position:static;flex-shrink:0;"></span>
+        <span>${activityText}</span>
+      </div>
+      <div class="card-quickview-hint">Ketuk sekali lagi di mana saja untuk menutup</div>
+    </div>
+  `;
+
+  overlay.classList.add('open');
+}
+
+function closeCardQuickView() {
+  const overlay = document.getElementById('modal-card-quickview');
+  if (overlay) overlay.classList.remove('open');
+}
+
+let _appConfirmHandler = null;
+
+function showAppConfirm({ title = 'Konfirmasi', message = 'Apakah Anda yakin?', confirmText = 'Ya, Lanjutkan', danger = false, onConfirm }) {
+  const overlay = document.getElementById('modal-app-confirm');
+  const titleEl = document.getElementById('app-confirm-title');
+  const msgEl = document.getElementById('app-confirm-msg');
+  const okBtn = document.getElementById('app-confirm-ok-btn');
+  if (!overlay || !okBtn) {
+    if (typeof onConfirm === 'function') onConfirm();
+    return;
+  }
+
+  if (titleEl) titleEl.textContent = title;
+  if (msgEl) msgEl.textContent = message;
+  okBtn.textContent = confirmText;
+  okBtn.className = danger ? 'btn-act btn-danger-action btn-sm' : 'btn-act btn-primary-action btn-sm';
+  okBtn.style.flex = '1';
+
+  _appConfirmHandler = onConfirm || null;
+  okBtn.onclick = () => {
+    const fn = _appConfirmHandler;
+    closeAppConfirm();
+    if (typeof fn === 'function') fn();
+  };
+
+  overlay.classList.add('open');
+}
+
+function closeUserLogsModal() {
+  const modal = document.getElementById('modal-user-logs');
+  if (modal) modal.classList.remove('open');
+}
+
+function formatUserLogTime(ts) {
+  if (!ts) return '-';
+  const normalized = ts.includes('T') ? ts : ts.replace(' ', 'T') + 'Z';
+  const d = new Date(normalized);
+  if (isNaN(d.getTime())) return ts;
+  const datePart = d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
+  const timePart = d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }).replace('.', ':');
+  return `${datePart}, ${timePart}`;
+}
+
+function getUserLogBadge(action) {
+  if (action === 'LOGIN') return { icon: '🔐', label: 'Login', color: 'var(--green-text)' };
+  if (action === 'LOGIN_GAGAL') return { icon: '⚠️', label: 'Login Gagal', color: 'var(--red-text)' };
+  if (action === 'TAMBAH_BARANG') return { icon: '➕', label: 'Tambah Barang', color: 'var(--accent-primary)' };
+  if (action === 'HAPUS_BARANG') return { icon: '🗑️', label: 'Hapus Barang', color: 'var(--red-text)' };
+  if (action === 'BUKA_KUNCI') return { icon: '🔓', label: 'Buka Kunci', color: 'var(--yellow-text)' };
+  return { icon: '📝', label: action || 'Aktivitas', color: 'var(--text-secondary)' };
+}
+
+async function openUserLogsModal() {
+  if (typeof closeProfileDropdown === 'function') closeProfileDropdown();
+  const modal = document.getElementById('modal-user-logs');
+  const body = document.getElementById('user-logs-modal-body');
+  if (!modal || !body) return;
+  body.innerHTML = `<div style="text-align:center;padding:24px;color:var(--text-muted);font-size:12.5px;">Memuat log aktivitas 14 hari terakhir...</div>`;
+  modal.classList.add('open');
+
+  try {
+    const res = await fetch('/api/user-logs');
+    const data = await res.json();
+    const logs = data.logs || [];
+    if (!logs.length) {
+      body.innerHTML = `<div style="text-align:center;padding:24px;color:var(--text-muted);font-size:12.5px;">Belum ada catatan login atau kelola barang dalam 14 hari terakhir.</div>`;
+      return;
+    }
+    body.innerHTML = logs.map(l => {
+      const b = getUserLogBadge(l.action);
+      return `
+        <div style="padding:10px 12px;border-radius:10px;border:1px solid var(--border-subtle);background:var(--bg-app);margin-bottom:8px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:4px;">
+            <span style="font-size:12px;font-weight:700;color:${b.color};">${b.icon} ${esc(b.label)} &bull; ${esc(l.actor)}</span>
+            <span style="font-size:11px;color:var(--text-muted);font-weight:600;">${esc(formatUserLogTime(l.created_at))}</span>
+          </div>
+          <div style="font-size:12.5px;color:var(--text-primary);">${esc(l.detail)}</div>
+          ${l.ip_address ? `<div style="font-size:10.5px;color:var(--text-muted);margin-top:3px;">IP: ${esc(l.ip_address)}</div>` : ''}
+        </div>
+      `;
+    }).join('');
+  } catch (err) {
+    body.innerHTML = `<div style="text-align:center;padding:24px;color:var(--red-text);font-size:12.5px;">Gagal memuat log aktivitas user.</div>`;
+  }
+}
+
+async function showUserActivityLogsInChat() {
+  try {
+    const res = await fetch('/api/user-logs');
+    const data = await res.json();
+    const logs = data.logs || [];
+    if (!logs.length) {
+      appendBotChat(`
+        👤 <strong>Log Aktivitas User (14 Hari Terakhir)</strong><br>
+        <span style="color:var(--text-secondary);">Belum ada catatan login atau kelola barang dalam 14 hari terakhir.</span>
+      `);
+      return;
+    }
+    const rowsHtml = logs.slice(0, 12).map(l => {
+      const b = getUserLogBadge(l.action);
+      return `
+        <div style="padding:7px 9px;border-radius:8px;border:1px solid var(--border-subtle);background:var(--bg-surface);margin-top:6px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:11px;">
+            <strong style="color:${b.color};">${b.icon} ${esc(b.label)} (${esc(l.actor)})</strong>
+            <span style="color:var(--text-muted);">${esc(formatUserLogTime(l.created_at))}</span>
+          </div>
+          <div style="font-size:12px;color:var(--text-primary);margin-top:2px;">${esc(l.detail)}</div>
+        </div>
+      `;
+    }).join('');
+    appendBotChat(`
+      👤 <strong>Log Aktivitas User (14 Hari Terakhir &bull; ${logs.length} Catatan)</strong>
+      ${rowsHtml}
+    `);
+  } catch (err) {
+    appendBotChat('Gagal mengambil log aktivitas user dari server.');
+  }
+}
+
+function closeAppConfirm() {
+  const overlay = document.getElementById('modal-app-confirm');
+  if (overlay) overlay.classList.remove('open');
+  _appConfirmHandler = null;
+}
+
+function unlockTool(itemId) {
+  showAppConfirm({
+    title: 'Buka Kunci Alat?',
+    message: 'Konfirmasi bahwa alat ini telah selesai diperbaiki dan aman digunakan kembali.',
+    confirmText: 'Ya, Buka Kunci',
+    onConfirm: async () => {
+      try {
+        const res = await fetch('/api/items/unlock', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ item_id: itemId })
+        });
+        if (res.ok) {
+          showToast('Alat berhasil dibuka kunci dan kembali tersedia.', 'success');
+          await loadItems();
+          renderBeranda();
+        } else {
+          showToast('Gagal membuka kunci alat.', 'warn');
+        }
+      } catch (err) {
+        showToast('Gagal menghubungi server.', 'warn');
+      }
+    }
+  });
 }
 
 function showAssetDetail(itemId) {
@@ -1209,10 +1446,11 @@ function renderAssetDetailContent(item, records, body) {
           <div class="tech-spec-k">Kategori</div>
           <div class="tech-spec-v">${esc(item.category)}</div>
         </div>
+        ${item.power_watts > 0 ? `
         <div class="tech-spec-item">
           <div class="tech-spec-k">Daya Listrik</div>
-          <div class="tech-spec-v">${item.power_watts ? item.power_watts + ' Watt' : 'Non-Listrik'}</div>
-        </div>
+          <div class="tech-spec-v">${item.power_watts} Watt</div>
+        </div>` : ''}
         <div class="tech-spec-item">
           <div class="tech-spec-k">Status</div>
           <div class="tech-spec-v" style="color:${statusColor};">${statusLabel}</div>
@@ -1263,7 +1501,13 @@ function getMaxBorrowDays(item) {
   const cat = (item.category || '').trim();
   const power = parseInt(item.power_watts || '0', 10);
   const danger = (item.danger_level || 'SEDANG').toUpperCase();
-  const heavyCats = ['Pertukangan Listrik', 'Akses Ketinggian', 'Peralatan Air & Cuci'];
+  const heavyCats = [
+    'Alat Listrik & Mesin',
+    'Tangga & Angkut',
+    'Pertukangan Listrik',
+    'Akses Ketinggian',
+    'Peralatan Air & Cuci'
+  ];
   if (heavyCats.includes(cat) || power > 0 || danger === 'TINGGI' || danger === 'SANGAT TINGGI') {
     return 3;
   }
@@ -1298,7 +1542,7 @@ function openBorrowWizard(itemId) {
   const metaEl = document.getElementById('wizard-tool-meta');
   if (imgEl) imgEl.src = item.last_photo_url || '/img/bor.svg';
   if (nameEl) nameEl.textContent = item.name;
-  if (metaEl) metaEl.textContent = `${item.category} • ${item.power_watts ? item.power_watts + 'W' : 'Non-Listrik'}`;
+  if (metaEl) metaEl.textContent = formatItemMeta(item);
 
   // Reset form inputs
   document.getElementById('wizard-borrower-name').value = '';
@@ -1604,9 +1848,22 @@ function renderWizardResultCard(data) {
 // ============================================================
 // MANUAL ADD & DELETE ITEM
 // ============================================================
+function toggleAddItemPowerField() {
+  const catEl = document.getElementById('add-item-category');
+  const groupEl = document.getElementById('add-item-power-group');
+  const powerInput = document.getElementById('add-item-power');
+  if (!catEl || !groupEl) return;
+  const isElectric = catEl.value === 'Alat Listrik & Mesin';
+  groupEl.style.display = isElectric ? 'block' : 'none';
+  if (!isElectric && powerInput) {
+    powerInput.value = '0';
+  }
+}
+
 function openAddItemModal() {
   const modal = document.getElementById('modal-add-item');
   if (modal) modal.classList.add('open');
+  toggleAddItemPowerField();
 }
 
 function closeAddItemModal() {
@@ -1614,6 +1871,7 @@ function closeAddItemModal() {
   if (modal) modal.classList.remove('open');
   const form = document.getElementById('form-add-item');
   if (form) form.reset();
+  toggleAddItemPowerField();
   const wrap = document.getElementById('add-item-preview-wrap');
   if (wrap) wrap.style.display = 'none';
 }
@@ -1649,12 +1907,7 @@ async function handleCreateItem(e) {
     return;
   }
 
-  let photoUrl = '/img/bor.svg';
-  if (category === 'Perkebunan') photoUrl = '/img/rumput.svg';
-  else if (category === 'Akses Ketinggian') photoUrl = '/img/tangga.svg';
-  else if (category === 'Peralatan Air & Cuci') photoUrl = '/img/jetcleaner.svg';
-  else if (category === 'Pertukangan Ringan') photoUrl = '/img/obeng.svg';
-  else if (category === 'Perkakas Manual') photoUrl = '/img/toolset.svg';
+  let photoUrl = getDefaultCategoryPhoto(category);
 
   if (fileInput && fileInput.files && fileInput.files[0]) {
     try {
@@ -1701,25 +1954,32 @@ async function handleCreateItem(e) {
   }
 }
 
-async function handleDeleteItem(itemId) {
-  if (!confirm('Yakin ingin menghapus peralatan ini dari inventaris?')) return;
-  try {
-    const res = await fetch('/api/items/delete', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ item_id: itemId })
-    });
-    if (res.ok) {
-      closeAssetDetailModal();
-      showToast('Peralatan berhasil dihapus dari inventaris.', 'success');
-      await loadItems();
-      renderBeranda();
-    } else {
-      showToast('Gagal menghapus peralatan.', 'warn');
+function handleDeleteItem(itemId) {
+  showAppConfirm({
+    title: 'Hapus Peralatan?',
+    message: 'Peralatan dan riwayat terkait akan dihapus permanen dari inventaris.',
+    confirmText: 'Ya, Hapus',
+    danger: true,
+    onConfirm: async () => {
+      try {
+        const res = await fetch('/api/items/delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ item_id: itemId })
+        });
+        if (res.ok) {
+          closeAssetDetailModal();
+          showToast('Peralatan berhasil dihapus dari inventaris.', 'success');
+          await loadItems();
+          renderBeranda();
+        } else {
+          showToast('Gagal menghapus peralatan.', 'warn');
+        }
+      } catch (err) {
+        showToast('Gagal menghubungi server.', 'warn');
+      }
     }
-  } catch (err) {
-    showToast('Gagal menghubungi server.', 'warn');
-  }
+  });
 }
 
 function readFileAsBase64(file) {
@@ -2059,9 +2319,20 @@ async function startChatSession() {
 }
 
 function restartChatConversation() {
-  if (chatDrawerBody) chatDrawerBody.innerHTML = '';
-  startChatSession();
-  showToast('Percakapan asisten dimulai ulang.', 'info');
+  showAppConfirm({
+    title: 'Mulai Ulang Percakapan?',
+    message: 'Riwayat obrolan di layar ini akan dibersihkan. Data peminjaman tetap aman.',
+    confirmText: 'Ya, Mulai Ulang',
+    onConfirm: () => {
+      if (chatDrawerBody) chatDrawerBody.innerHTML = '';
+      state.selectedItem = null;
+      state.currentPhotoUrl = '';
+      state.collectedFacts = {};
+      state.lastResult = null;
+      startChatSession();
+      showToast('Percakapan asisten dimulai ulang.', 'info');
+    }
+  });
 }
 
 function sendSuggestedQuery(text) {
@@ -2088,30 +2359,30 @@ async function handleChatSubmit(e) {
 // Category Guesser for New Tools
 function guessToolCategory(toolName) {
   const t = (toolName || '').toLowerCase();
-  if (t.includes('cangkul') || t.includes('arit') || t.includes('sekop') || t.includes('rumput') || t.includes('kebun') || t.includes('tanaman') || t.includes('dahan') || t.includes('garpu')) {
-    return 'Perkebunan';
+  if (t.includes('gelas') || t.includes('piring') || t.includes('mangkuk') || t.includes('cangkir') || t.includes('kursi') || t.includes('meja') || t.includes('tenda') || t.includes('terpal') || t.includes('panci') || t.includes('termos') || t.includes('karpet') || t.includes('tikar') || t.includes('dispenser')) {
+    return 'Rumah Tangga & Acara';
   }
-  if (t.includes('bor') || t.includes('gerinda') || t.includes('las') || t.includes('solder') || t.includes('jigsaw') || t.includes('listrik') || t.includes('mesin') || t.includes('circular')) {
-    return 'Pertukangan Listrik';
+  if (t.includes('cangkul') || t.includes('arit') || t.includes('sekop') || t.includes('rumput') || t.includes('kebun') || t.includes('tanaman') || t.includes('dahan') || t.includes('garpu') || t.includes('sapu') || t.includes('selang') || t.includes('ember')) {
+    return 'Taman & Kebersihan';
   }
-  if (t.includes('tangga') || t.includes('steger') || t.includes('scaffolding')) {
-    return 'Akses Ketinggian';
+  if (t.includes('bor') || t.includes('gerinda') || t.includes('las') || t.includes('solder') || t.includes('jigsaw') || t.includes('listrik') || t.includes('mesin') || t.includes('circular') || t.includes('jet') || t.includes('cleaner') || t.includes('pompa') || t.includes('steam') || t.includes('kabel')) {
+    return 'Alat Listrik & Mesin';
   }
-  if (t.includes('jet') || t.includes('cleaner') || t.includes('cuci') || t.includes('pompa') || t.includes('selang') || t.includes('steam')) {
-    return 'Peralatan Air & Cuci';
+  if (t.includes('tangga') || t.includes('steger') || t.includes('scaffolding') || t.includes('gerobak') || t.includes('angkong') || t.includes('troli')) {
+    return 'Tangga & Angkut';
   }
-  if (t.includes('obeng') || t.includes('tang') || t.includes('kunci') || t.includes('meteran') || t.includes('tespen')) {
-    return 'Pertukangan Ringan';
+  if (t.includes('obeng') || t.includes('tang') || t.includes('kunci') || t.includes('meteran') || t.includes('tespen') || t.includes('palu') || t.includes('gergaji') || t.includes('pahat')) {
+    return 'Perkakas & Tukang';
   }
-  return 'Perkakas Manual';
+  return 'Lainnya';
 }
 
 function getDefaultCategoryPhoto(category) {
-  if (category === 'Perkebunan') return '/img/rumput.svg';
-  if (category === 'Akses Ketinggian') return '/img/tangga.svg';
-  if (category === 'Peralatan Air & Cuci') return '/img/jetcleaner.svg';
-  if (category === 'Pertukangan Ringan') return '/img/obeng.svg';
-  if (category === 'Pertukangan Listrik') return '/img/bor.svg';
+  const c = normalizeCategory(category);
+  if (c === 'Taman & Kebersihan') return '/img/rumput.svg';
+  if (c === 'Tangga & Angkut') return '/img/tangga.svg';
+  if (c === 'Alat Listrik & Mesin') return '/img/bor.svg';
+  if (c === 'Perkakas & Tukang') return '/img/toolset.svg';
   return '/img/toolset.svg';
 }
 
@@ -2123,8 +2394,8 @@ function parseNaturalBorrowQuery(text) {
   if (!lower) return null;
 
   // 0. GUARDRAIL: Pertanyaan informatif / FAQ / Riwayat TIDAK BOLEH masuk ke Loan Intent
-  const startsWithQuestion = /^(bagaimana|gimana|apa|apakah|berapa|kenapa|mengapa|kapan|dimana|siapa|bolehkah|jelaskan|info)\b/i.test(lower);
-  const hasFaqOrStatusKeyword = /\b(aturan|syarat|durasi|batas\s*waktu|cara\s*pinjam|cara\s*kerja|biaya|gratis|denda|rusak|zona|triase|forward\s*chaining|certainty|riwayat|histori|log|aktivitas|pengembang|liana|iteba|dosen|ready|tersedia|peminjam\s*terakhir)\b/i.test(lower);
+  const startsWithQuestion = /^(bagaimana|gimana|gmna|apa|apakah|berapa|brp|kenapa|mengapa|kapan|dimana|siapa|bolehkah|jelaskan|info|cek|list|daftar|ada\s+(yang|yg|apa)|mana\s+(yang|yg))\b/i.test(lower);
+  const hasFaqOrStatusKeyword = /\b(aturan|syarat|durasi|batas\s*waktu|cara\s*pinjam|cara\s*kerja|biaya|gratis|denda|rusak|terkunci|lockout|servis|bermasalah|dipinjam|dipinjem|terpinjam|zona|triase|forward\s*chaining|certainty|riwayat|histori|log|aktivitas|pengembang|liana|iteba|dosen|ready|tersedia|stok|inventaris|peminjam\s*terakhir)\b/i.test(lower);
   if (startsWithQuestion || hasFaqOrStatusKeyword) {
     return null;
   }
@@ -2275,8 +2546,8 @@ function parseNaturalBorrowQuery(text) {
   const patternB = /^(?:(?:tolong|mau|ingin)\s+)?(?:pinjam|minjam|meminjam)\s+([A-Za-z0-9\s]+?)\s+(?:untuk|buat|atas nama)\s+([A-Za-z\s]+?)(?:\s+wa\b.*|\s+nomor\b.*|\s+no\b.*|\s*$)/i;
   const matchB = workText.match(patternB);
 
-  // Pattern C: (tambah|catat|daftarkan|masukkan) [Alat]
-  const patternC = /(?:tambah|catat|daftarkan|masukkan)\s+(?:alat\s+)?([A-Za-z0-9\s]+?)(?:\s+ke\s+rak|\s+baru|\s+gudang|\s*$)/i;
+  // Pattern C: (tambah|tambahkan|catat|daftarkan|masukkan|masukin|input|inputkan) [Alat]
+  const patternC = /(?:tambahkan|tambah|catat|daftarkan|masukkan|masukin|inputkan|input)\s+(?:alat\s+|barang\s+)?([A-Za-z0-9\s]+?)(?:\s+ke\s+rak|\s+baru|\s+gudang|\s*$)/i;
   const matchC = workText.match(patternC);
 
   if (matchA) {
@@ -2294,6 +2565,13 @@ function parseNaturalBorrowQuery(text) {
   toolStopWords.forEach(sw => {
     candidateTool = candidateTool.replace(new RegExp('\\b' + sw + '\\b.*$', 'gi'), '').trim();
   });
+
+  // Guardrail: reject generic nouns or numeric-only quantities (e.g. "barang", "200 barang", "alat")
+  const genericToolRe = /^(?:barang|alat|perkakas|item|benda|sesuatu|stok|produk|perlengkapan|\d+(?:\s*(?:barang|alat|perkakas|item|buah|pcs|unit))?)$/i;
+  if (candidateTool && genericToolRe.test(candidateTool.trim())) {
+    if (!hasBorrow) return null;
+    candidateTool = '';
+  }
 
   if (candidateTool && candidateTool.length >= 3) {
     // Capitalize tool name
@@ -2417,8 +2695,16 @@ async function registerAndBorrowDirectly(toolName, category, photoUrl, borrowerN
   }
 }
 
-async function registerToolOnly(toolName, category, photoUrl, powerWatts = 0) {
+function escJsArg(str) {
+  return String(str || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+}
+
+async function registerToolOnly(toolName, category, photoUrl, powerWatts = 0, btnEl = null) {
   const finalPhoto = photoUrl || getDefaultCategoryPhoto(category);
+  if (btnEl) {
+    btnEl.disabled = true;
+    btnEl.textContent = 'Mendaftarkan...';
+  }
   try {
     const res = await fetch('/api/items', {
       method: 'POST',
@@ -2434,6 +2720,7 @@ async function registerToolOnly(toolName, category, photoUrl, powerWatts = 0) {
     });
     const data = await res.json();
     if (res.ok && data.success) {
+      if (btnEl) btnEl.textContent = 'Sudah Didaftarkan';
       await loadAllData();
       appendBotChat(`
         <div style="background:var(--bg-surface);border:1px solid var(--green-border);border-radius:10px;padding:10px;margin-top:6px;">
@@ -2445,9 +2732,11 @@ async function registerToolOnly(toolName, category, photoUrl, powerWatts = 0) {
       `);
       showToast(`${toolName} berhasil ditambahkan ke inventaris.`, 'success');
     } else {
+      if (btnEl) { btnEl.disabled = false; btnEl.textContent = `+ Daftarkan ${toolName} Sekarang`; }
       showToast(data.error || 'Gagal menambahkan alat.', 'warn');
     }
   } catch (err) {
+    if (btnEl) { btnEl.disabled = false; btnEl.textContent = `+ Daftarkan ${toolName} Sekarang`; }
     showToast('Koneksi server gagal.', 'warn');
   }
 }
@@ -2455,6 +2744,11 @@ async function registerToolOnly(toolName, category, photoUrl, powerWatts = 0) {
 async function executeExpressBorrow(toolId, borrowerName, borrowerPhone, borrowDays, phoneInputId = '') {
   const inlineInput = phoneInputId ? document.getElementById(phoneInputId) : null;
   const finalPhone = (inlineInput ? inlineInput.value.trim() : '') || borrowerPhone || '';
+  if (finalPhone && finalPhone.replace(/\D/g, '').length < 8) {
+    showToast('Nomor WhatsApp minimal 8 digit angka yang valid.', 'warn');
+    if (inlineInput) inlineInput.focus();
+    return;
+  }
   const submitBtn = document.getElementById(`btn-confirm-express-${toolId}`);
   if (submitBtn) {
     submitBtn.textContent = 'Memproses...';
@@ -2772,7 +3066,7 @@ async function processUserChatMessage(rawText, photoBase64 = null) {
               <img class="express-tool-thumb" src="${uploadedPhotoUrl || tool.last_photo_url || '/img/bor.svg'}" alt="${esc(tool.name)}" onerror="this.onerror=null; this.src='/img/bor.svg';">
               <div>
                 <div style="font-weight:700;font-size:13px;color:var(--text-primary);">${esc(tool.name)}</div>
-                <div style="font-size:11px;color:var(--text-secondary);">${esc(tool.category)} &bull; ${tool.power_watts ? tool.power_watts + 'W' : 'Non-Listrik'}</div>
+                <div style="font-size:11px;color:var(--text-secondary);">${esc(formatItemMeta(tool))}</div>
               </div>
             </div>
 
@@ -2923,7 +3217,7 @@ async function processUserChatMessage(rawText, photoBase64 = null) {
                 <div style="font-size:11px;color:var(--text-secondary);">Kategori Rekomendasi: <strong>${esc(cat)}</strong></div>
               </div>
             </div>
-            <button class="btn-act btn-primary-action btn-sm" onclick="registerToolOnly('${esc(newTool)}', '${esc(cat)}', '${uploadedPhotoUrl}')">
+            <button class="btn-act btn-primary-action btn-sm" onclick="registerToolOnly('${escJsArg(newTool)}', '${escJsArg(cat)}', '${escJsArg(uploadedPhotoUrl)}', ${parseInt(borrowIntent.powerWatts || 0, 10)}, this)">
               + Daftarkan ${esc(newTool)} Sekarang
             </button>
           </div>
@@ -2975,6 +3269,111 @@ async function processUserChatMessage(rawText, photoBase64 = null) {
               + Simpan ke Inventaris
             </button>
           </div>
+        </div>
+      `);
+      return;
+    }
+
+    // 0B. Intent: Tanggal / Jam / Waktu Sekarang
+    const isAskingTime = (
+      /\b(tanggal\s+sekarang|jam\s+berapa|jam\s+brp|pukul\s+berapa|hari\s+apa|waktu\s+sekarang)\b/.test(query) ||
+      (/\b(tanggal|tgl|hari|jam|waktu)\b/.test(query) && /\b(sekarang|skrg|hari ini|ini|berapa|brp|apa|saat ini)\b/.test(query))
+    );
+    if (isAskingTime) {
+      const now = new Date();
+      const tglStr = now.toLocaleDateString('id-ID', {
+        weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+      });
+      const jamStr = now.toLocaleTimeString('id-ID', {
+        hour: '2-digit', minute: '2-digit'
+      }).replace('.', ':');
+      appendBotChat(`
+        🗓️ <strong>Waktu Saat Ini:</strong><br>
+        <strong>${tglStr}</strong> &bull; Pukul <strong>${jamStr}</strong>
+      `);
+      return;
+    }
+
+    // 0C. Intent: Cek Barang yang Sedang Dipinjam / Siapa yang Lagi Pinjam
+    const isAskingBorrowedList = (
+      /\b(dipinjam|dipinjem|terpinjam)\b/.test(query) ||
+      /\b(siapa|daftar|list|apa\s+aja|apa\s+saja|mana\s+aja|ada\s+(yang|yg))\b.*\b(pinjam|minjam|minjem|peminjam)\b/.test(query) ||
+      /\b(lagi|sedang)\b.*\b(dipinjam|dipinjem|pinjam|minjam|minjem|keluar)\b/.test(query)
+    ) && !/\b(aturan|cara|syarat|durasi|berapa\s+lama|berapa\s+hari|contoh|terakhir|riwayat|histori|log)\b/.test(query);
+
+    if (isAskingBorrowedList) {
+      const borrowed = (state.items || []).filter(it => it.status === 'BORROWED');
+      if (!borrowed.length) {
+        appendBotChat(`
+          ✅ <strong>Saat ini tidak ada barang yang sedang dipinjam.</strong><br>
+          Semua inventaris (${(state.items || []).length} barang) dalam keadaan aman di gudang.
+          <div class="chat-chip-row">
+            <button class="chat-quick-btn" onclick="handleChatQuickAction('history_7d')">
+              <span>📋</span><span>Lihat Riwayat 7 Hari</span>
+            </button>
+          </div>
+        `);
+      } else {
+        const listHtml = borrowed.map(it => {
+          const photo = it.last_photo_url || getDefaultCategoryPhoto(it.category);
+          return `
+            <div class="chat-tool-card">
+              <img class="chat-tool-thumb" src="${photo}" alt="${esc(it.name)}" onerror="this.onerror=null; this.src='/img/bor.svg';">
+              <div class="chat-tool-info">
+                <div class="chat-tool-name">${esc(it.name)}</div>
+                <div class="chat-tool-sub">Peminjam: <strong>${esc(it.active_borrower || 'Warga')}</strong> &bull; ${it.active_borrow_days || 1} hari</div>
+              </div>
+            </div>
+          `;
+        }).join('');
+        appendBotChat(`
+          ⏳ Terdapat <strong>${borrowed.length} barang</strong> yang sedang dipinjam:<br>
+          ${listHtml}
+        `);
+      }
+      return;
+    }
+
+    // 0D. Intent: Cek Barang yang Sedang Rusak / Lockout Servis
+    const isAskingDamagedList = (
+      /\b(rusak|terkunci|lockout|servis|perbaikan|bermasalah|karantina|error|mati|macet)\b/.test(query)
+    ) && !/\b(aturan|kalau|klo|jika|misal|cara|denda|biaya|ganti|sanksi)\b/.test(query);
+
+    if (isAskingDamagedList) {
+      const locked = (state.items || []).filter(it => it.status === 'MAINTENANCE_LOCKED');
+      if (!locked.length) {
+        appendBotChat(`
+          ✅ <strong>Tidak ada barang yang sedang rusak atau terkunci servis saat ini.</strong><br>
+          Seluruh inventaris dalam kondisi aman dan terawat.
+        `);
+      } else {
+        const listHtml = locked.map(it => `
+          <div class="chat-tool-card">
+            <img class="chat-tool-thumb" src="${it.last_photo_url || getDefaultCategoryPhoto(it.category)}" alt="${esc(it.name)}" onerror="this.onerror=null; this.src='/img/bor.svg';">
+            <div class="chat-tool-info">
+              <div class="chat-tool-name">${esc(it.name)}</div>
+              <div class="chat-tool-sub" style="color:var(--red-text);">🔒 Lockout / Perlu Servis</div>
+            </div>
+          </div>
+        `).join('');
+        appendBotChat(`
+          🔧 Terdapat <strong>${locked.length} barang</strong> dalam status karantina/rusak:<br>
+          ${listHtml}
+        `);
+      }
+      return;
+    }
+
+    // 0E. Intent: Info / Bantuan / Menu / Kemampuan Asisten
+    if (/^(info|bantuan|help|menu|panduan)$/.test(query) || /\b(bisa apa|fitur apa|cara pakai)\b/.test(query)) {
+      appendBotChat(`
+        <strong>Saya Asisten GudangLingling!</strong> Anda bisa langsung mengetik:<br>
+        <div style="font-size:12px;line-height:1.65;margin-top:6px;background:var(--bg-surface);padding:9px 11px;border-radius:8px;border:1px solid var(--border-subtle);">
+          • <strong>Cek stok:</strong> <em>"alat apa saja yang ready?"</em> / <em>"ada barang apa?"</em><br>
+          • <strong>Cek peminjam:</strong> <em>"siapa aja yang lagi pinjam?"</em> / <em>"barang dipinjam"</em><br>
+          • <strong>Cek kerusakan:</strong> <em>"ada alat yang rusak?"</em><br>
+          • <strong>Pinjam kilat:</strong> <em>"Budi pinjam bor 2 hari"</em><br>
+          • <strong>Kembalikan:</strong> <em>"Budi kembalikan bor"</em>
         </div>
       `);
       return;
@@ -3047,18 +3446,25 @@ async function processUserChatMessage(rawText, photoBase64 = null) {
       return;
     }
 
-    // 4B. Intent: Riwayat / Log Aktivitas 7 Hari Terakhir / Peminjam Terakhir
+    // 4A-bis. Intent: Log Aktivitas User (Login & Kelola Barang, 14 Hari Terakhir)
+    if (/\b(log\s*(user|pengguna|admin|login|kelola|saya|aku)|aktivitas\s*(user|pengguna|admin|login|saya|aku)|riwayat\s*(user|pengguna|admin|login))\b/.test(query)) {
+      showUserActivityLogsInChat();
+      return;
+    }
+
+    // 4B. Intent: Riwayat / Log Peminjaman 7 Hari Terakhir / Peminjam Terakhir
     if (query.includes('riwayat') || query.includes('histori') || query.includes('log') || query.includes('7 hari') || query.includes('aktivitas') || query.includes('peminjam terakhir') || query.includes('siapa yang pinjam')) {
       showRecentHistoryInChat(true);
       return;
     }
 
-    // 5. Intent: Cek Alat Ready / Kueri Alat Spesifik
+    // 5. Intent: Cek Alat Ready / Stok Gudang / Kueri Alat Spesifik
+    const isAskingReadyAll = /\b(ready|tersedia|ada apa|semua alat|semua barang|daftar alat|daftar barang|list alat|list barang|stok|isi gudang|inventaris|punya apa|bisa dipinjam|bisa dipinjem)\b/.test(query);
     const matches = (state.items || []).filter(it => {
       const name = it.name.toLowerCase();
       const cat = (it.category || '').toLowerCase();
       const desc = (it.description || '').toLowerCase();
-      if (query.includes('ready') || query.includes('tersedia') || query.includes('ada apa') || query.includes('semua alat')) {
+      if (isAskingReadyAll) {
         return it.status === 'AVAILABLE';
       }
       return query.split(' ').some(word => word.length >= 3 && (name.includes(word) || cat.includes(word) || desc.includes(word)));
@@ -3234,7 +3640,7 @@ function handleChatQuickAction(action) {
           <img class="chat-tool-thumb" src="${t.last_photo_url || '/img/bor.svg'}" alt="${esc(t.name)}" onerror="this.onerror=null; this.src='/img/bor.svg';">
           <div class="chat-tool-info">
             <div class="chat-tool-name">${esc(t.name)}</div>
-            <div class="chat-tool-sub">${esc(t.category)} &bull; ${t.power_watts ? t.power_watts + 'W' : 'Non-Listrik'}</div>
+            <div class="chat-tool-sub">${esc(formatItemMeta(t))}</div>
           </div>
           <button class="chat-tool-btn" onclick="closeChatDrawer(); openBorrowWizard(${t.id});">Pinjam</button>
         </div>

@@ -16,13 +16,33 @@ Triase Tiga Zona Keputusan:
 3. ZONA MERAH (h(S) >= 70)      -> Ditolak & Lockout Karantina Perbaikan
 """
 
+import re
 from typing import Dict, Any, List, Tuple
 from engine.knowledge_base import FACTS, Fact
 
 
 class HeuristicRiskEngine:
     @staticmethod
-    def evaluate_risk(facts_input: Dict[str, float]) -> Dict[str, Any]:
+    def _build_green_advice(item: Dict[str, Any] = None) -> str:
+        """Menghasilkan catatan keselamatan/pemakaian yang sesuai jenis barang."""
+        if not item:
+            return "Barang dalam kondisi baik dan layak pakai. Mohon digunakan sesuai fungsi dan dijaga dengan baik."
+
+        cat = (item.get("category") or "").strip()
+        name = (item.get("name") or "").lower()
+        power = int(item.get("power_watts") or 0)
+
+        electric_cats = {"Alat Listrik & Mesin", "Pertukangan Listrik", "Peralatan Air & Cuci"}
+        if power > 0 or cat in electric_cats or re.search(r"\b(bor|gerinda|las|solder|listrik|mesin|pompa|jet cleaner|steam)\b", name):
+            return "Alat dalam kondisi baik dan aman. Pastikan kabel aman serta matikan alat setelah selesai digunakan."
+
+        if cat == "Rumah Tangga & Acara" or re.search(r"\b(gelas|piring|mangkuk|cangkir|botol|panci|termos|kaca|keramik|kursi|meja|tenda|terpal|taplak)\b", name):
+            return "Barang dalam kondisi baik dan bersih. Mohon digunakan dengan hati-hati agar tidak rusak atau pecah."
+
+        return "Barang dalam kondisi baik dan layak pakai. Mohon digunakan sesuai fungsi dan dijaga kebersihannya."
+
+    @staticmethod
+    def evaluate_risk(facts_input: Dict[str, float], item: Dict[str, Any] = None) -> Dict[str, Any]:
         """
         Menghitung skor heuristik keselamatan h(S) dan menentukan zonasi triase.
         Input: facts_input = {"F01": 0.8, "F05": 0.6, ...}
@@ -70,7 +90,7 @@ class HeuristicRiskEngine:
             zone_label = "ZONA HIJAU (Aman / Layak Pakai Optimal)"
             badge_color = "#10B981"  # Emerald Green
             action_code = "APPROVE"
-            safety_advice = "Alat dalam kondisi aman dan terawat. Tetap berhati-hati saat menyalakan alat."
+            safety_advice = HeuristicRiskEngine._build_green_advice(item)
         elif final_score < 70.0:
             zone = "YELLOW"
             zone_label = "ZONA KUNING (Peminjaman Bersyarat & Perlu APD)"

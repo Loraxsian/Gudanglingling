@@ -6,6 +6,7 @@ Mengelola Data Inventaris Alat, Foto Bukti Kondisi, Transaksi Peminjaman, Log Em
 import sqlite3
 import json
 import hashlib
+import secrets
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 import config
@@ -115,6 +116,27 @@ def init_db():
                 "INSERT INTO app_auth (username, display_name, password_hash, is_default_password) VALUES (?, ?, ?, 1)",
                 ("lingling", "Kak Ling", _hash_pw("ling123"))
             )
+
+        # 5. Tabel Log Aktivitas User (Login & Kelola Barang, retensi 14 hari)
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS user_activity_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            actor TEXT NOT NULL,
+            action TEXT NOT NULL,
+            detail TEXT NOT NULL,
+            ip_address TEXT DEFAULT '',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        """)
+
+        # 6. Tabel Token Sesi Login (Persisten di SQLite agar tahan restart kontainer)
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS user_sessions (
+            token TEXT PRIMARY KEY,
+            actor TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        """)
 
         conn.commit()
 
@@ -257,9 +279,14 @@ def add_item(data: Dict[str, Any]) -> int:
 
 
 def delete_item(item_id: int) -> bool:
-    """Menghapus alat dari database inventaris."""
+    """Menghapus alat beserta riwayat peminjaman dan log terkait agar tidak menjadi data yatim."""
     with get_connection() as conn:
         cursor = conn.cursor()
+        cursor.execute(
+            "DELETE FROM email_logs WHERE record_id IN (SELECT id FROM borrowing_records WHERE item_id = ?)",
+            (item_id,),
+        )
+        cursor.execute("DELETE FROM borrowing_records WHERE item_id = ?", (item_id,))
         cursor.execute("DELETE FROM items WHERE id = ?", (item_id,))
         conn.commit()
         return cursor.rowcount > 0
@@ -370,7 +397,7 @@ def get_reminder_queue() -> List[Dict[str, Any]]:
         SELECT b.*, i.name as item_name, i.category as item_category,
                CAST((julianday('now') - julianday(b.created_at)) AS INTEGER) as days_elapsed
         FROM borrowing_records b
-        LEFT JOIN items i ON b.item_id = i.id
+        INNER JOIN items i ON b.item_id = i.id
         WHERE b.status = 'ACTIVE'
         ORDER BY b.created_at ASC
         """)
@@ -384,7 +411,7 @@ def get_borrowing_history() -> List[Dict[str, Any]]:
         cursor.execute("""
         SELECT b.*, i.name as item_name, i.category as item_category
         FROM borrowing_records b
-        LEFT JOIN items i ON b.item_id = i.id
+        INNER JOIN items i ON b.item_id = i.id
         ORDER BY b.id DESC
         LIMIT 50
         """)
@@ -423,3 +450,74 @@ def unlock_maintenance_item(item_id: int) -> bool:
         cursor.execute("UPDATE items SET status = 'AVAILABLE' WHERE id = ?", (item_id,))
         conn.commit()
         return cursor.rowcount > 0
+
+
+def log_user_activity(actor: str, action: str, detail: str, ip_address: str = "") -> int:
+    """Mencatat aktivitas login dan kelola barang pengurus, serta memangkas log > 14 hari."""
+    init_db()
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM user_activity_logs WHERE created_at < datetime('now', '-14 days')")
+        cursor.execute(
+            "INSERT INTO user_activity_logs (actor, action, detail, ip_address) VALUES (?, ?, ?, ?)",
+            (actor or "Pengurus", action, detail, ip_address or ""),
+        )
+        conn.commit()
+        return cursor.lastrowid
+
+
+def get_user_activity_logs(days: int = 14, limit: int = 100) -> List[Dict[str, Any]]:
+    """Mengambil log aktivitas login dan kelola barang dalam N hari terakhir."""
+    init_db()
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT id, actor, action, detail, ip_address, created_at
+            FROM user_activity_logs
+            WHERE created_at >= datetime('now', ?)
+            ORDER BY id DESC
+            LIMIT ?
+            """,
+            (f"-{int(days)} days", int(limit)),
+        )
+        return [dict(row) for row in cursor.fetchall()]
+
+
+def create_session_token(actor: str) -> str:
+    """Membuat token sesi persisten di SQLite untuk otorisasi endpoint API."""
+    init_db()
+    token = secrets.token_hex(24)
+    with get_connection() as conn:
+        conn.execute(
+            "DELETE FROM user_sessions WHERE created_at < datetime('now', '-30 days')"
+        )
+        conn.execute(
+            "INSERT INTO user_sessions (token, actor) VALUES (?, ?)",
+            (token, actor or "Pengurus"),
+        )
+        conn.commit()
+    return token
+
+
+def verify_session_token(token: str) -> Optional[Dict[str, Any]]:
+    """Memvalidasi token sesi dari header Authorization/X-Auth-Token."""
+    if not token:
+        return None
+    init_db()
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT token, actor, created_at FROM user_sessions WHERE token = ?",
+            (token,),
+        ).fetchone()
+        return dict(row) if row else None
+
+
+def revoke_session_token(token: str) -> None:
+    """Menghapus token sesi saat pengguna logout."""
+    if not token:
+        return
+    init_db()
+    with get_connection() as conn:
+        conn.execute("DELETE FROM user_sessions WHERE token = ?", (token,))
+        conn.commit()
