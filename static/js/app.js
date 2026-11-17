@@ -12,6 +12,7 @@ const state = {
   items: [],
   reminders: [],
   emailLogs: [],
+  history: [],
   selectedItem: null,
   activeCategory: 'ALL',
   activeKeyword: '',
@@ -813,9 +814,33 @@ function openChatWithItem(itemId) {
 // 3. DATA LOADERS
 // ============================================================
 async function loadAllData() {
-  await Promise.all([loadItems(), loadReminders(), loadEmailLogs()]);
+  await Promise.all([loadItems(), loadReminders(), loadEmailLogs(), loadHistory()]);
   renderBeranda();
   renderMessage();
+}
+
+async function loadHistory() {
+  try {
+    const res = await fetch('/api/history');
+    const data = await res.json();
+    state.history = data.history || [];
+  } catch (err) {
+    console.error('Error load history:', err);
+  }
+}
+
+function lookupBorrowerPhoneFromHistory(name) {
+  const target = (name || '').trim().toLowerCase();
+  if (!target || target === 'warga / peminjam') return null;
+  const sources = [...(state.history || []), ...(state.reminders || [])];
+  for (const rec of sources) {
+    const rName = (rec.borrower_name || '').trim().toLowerCase();
+    const rPhone = (rec.borrower_phone || '').trim();
+    if (rPhone && (rName === target || rName.includes(target) || target.includes(rName))) {
+      return { phone: rPhone, matchedName: rec.borrower_name };
+    }
+  }
+  return null;
 }
 
 async function loadItems() {
@@ -2220,7 +2245,9 @@ function parseNaturalBorrowQuery(text) {
   };
 }
 
-async function registerAndBorrowDirectly(toolName, category, photoUrl, borrowerName, borrowerPhone, borrowDays) {
+async function registerAndBorrowDirectly(toolName, category, photoUrl, borrowerName, borrowerPhone, borrowDays, phoneInputId = '') {
+  const inlineInput = phoneInputId ? document.getElementById(phoneInputId) : null;
+  const finalPhone = (inlineInput ? inlineInput.value.trim() : '') || borrowerPhone || '';
   const btn = document.getElementById('btn-reg-borrow-direct');
   if (btn) {
     btn.textContent = 'Memproses...';
@@ -2259,7 +2286,7 @@ async function registerAndBorrowDirectly(toolName, category, photoUrl, borrowerN
       body: JSON.stringify({
         item_id: newItemId,
         borrower_name: borrowerName,
-        borrower_phone: borrowerPhone,
+        borrower_phone: finalPhone,
         borrow_days: borrowDays,
         facts: {},
         photo_url: finalPhoto
@@ -2283,7 +2310,7 @@ async function registerAndBorrowDirectly(toolName, category, photoUrl, borrowerN
           </div>
         </div>
         <div style="font-size:12px;color:var(--text-primary);margin-bottom:8px;">
-          Peminjam: <strong>${esc(borrowerName)}</strong> (${borrowerPhone || 'Tanpa WA'})
+          Peminjam: <strong>${esc(borrowerName)}</strong> (${finalPhone || 'Tanpa WA'})
         </div>
         <div style="display:flex;flex-direction:column;gap:6px;">
           <a href="${borrowData.whatsapp_url}" target="_blank" onclick="recordDigitalReceipt(${borrowData.record_id}, '${esc(toolName)}', '${esc(borrowerName)}', ${borrowDays})" class="btn-act btn-whatsapp-action btn-sm" style="text-decoration:none;display:flex;justify-content:center;align-items:center;gap:6px;">
@@ -2335,7 +2362,9 @@ async function registerToolOnly(toolName, category, photoUrl) {
   }
 }
 
-async function executeExpressBorrow(toolId, borrowerName, borrowerPhone, borrowDays) {
+async function executeExpressBorrow(toolId, borrowerName, borrowerPhone, borrowDays, phoneInputId = '') {
+  const inlineInput = phoneInputId ? document.getElementById(phoneInputId) : null;
+  const finalPhone = (inlineInput ? inlineInput.value.trim() : '') || borrowerPhone || '';
   const submitBtn = document.getElementById(`btn-confirm-express-${toolId}`);
   if (submitBtn) {
     submitBtn.textContent = 'Memproses...';
@@ -2349,7 +2378,7 @@ async function executeExpressBorrow(toolId, borrowerName, borrowerPhone, borrowD
       body: JSON.stringify({
         item_id: toolId,
         borrower_name: borrowerName,
-        borrower_phone: borrowerPhone,
+        borrower_phone: finalPhone,
         borrow_days: borrowDays,
         facts: {}
       })
@@ -2450,8 +2479,17 @@ async function processUserChatMessage(rawText, photoBase64 = null) {
       if (borrowIntent.type === 'BORROW_EXPRESS') {
         const tool = borrowIntent.tool;
         const name = borrowIntent.name;
-        const phone = borrowIntent.phone;
+        let phone = borrowIntent.phone;
+        let phoneFromHistory = false;
+        if (!phone) {
+          const histMatch = lookupBorrowerPhoneFromHistory(name);
+          if (histMatch) {
+            phone = histMatch.phone;
+            phoneFromHistory = true;
+          }
+        }
         const days = borrowIntent.days;
+        const inlineWaId = `express-wa-${tool.id}-${Date.now()}`;
 
         if (tool.status === 'BORROWED') {
           appendBotChat(`
@@ -2515,8 +2553,10 @@ async function processUserChatMessage(rawText, photoBase64 = null) {
                 <div class="express-data-val">${days} Hari</div>
               </div>
               <div class="express-data-item" style="grid-column:span 2;">
-                <div class="express-data-lbl">WhatsApp</div>
-                <div class="express-data-val">${phone ? esc(phone) : '<span style="color:var(--text-muted);font-weight:normal;">Belum dicantumkan</span>'}</div>
+                <div class="express-data-lbl">WhatsApp ${phoneFromHistory ? '<span style="color:var(--green-text);font-weight:700;">(📱 Otomatis dari riwayat)</span>' : ''}</div>
+                ${phone
+                  ? `<div class="express-data-val">${esc(phone)}</div>`
+                  : `<input type="tel" id="${inlineWaId}" class="form-input" style="height:32px;font-size:12px;margin-top:4px;" placeholder="Warga baru: ketik No. WA (opsional)">`}
               </div>
             </div>
 
@@ -2526,7 +2566,7 @@ async function processUserChatMessage(rawText, photoBase64 = null) {
             </div>
 
             <div class="express-actions-col">
-              <button class="btn-act btn-primary-action btn-sm" id="btn-confirm-express-${tool.id}" onclick="executeExpressBorrow(${tool.id}, '${esc(name)}', '${esc(phone)}', ${days})">
+              <button class="btn-act btn-primary-action btn-sm" id="btn-confirm-express-${tool.id}" onclick="executeExpressBorrow(${tool.id}, '${esc(name)}', '${esc(phone)}', ${days}, '${inlineWaId}')">
                 ⚡ Konfirmasi &amp; Pinjam
               </button>
               <button class="btn-act btn-subtle-action btn-sm" onclick="openBorrowWizardWithData(${tool.id}, '${esc(name)}', '${esc(phone)}', ${days})">
@@ -2543,9 +2583,18 @@ async function processUserChatMessage(rawText, photoBase64 = null) {
         const newTool = borrowIntent.newToolName;
         const cat = borrowIntent.category;
         const name = borrowIntent.name;
-        const phone = borrowIntent.phone;
+        let phone = borrowIntent.phone;
+        let phoneFromHistory = false;
+        if (!phone) {
+          const histMatch = lookupBorrowerPhoneFromHistory(name);
+          if (histMatch) {
+            phone = histMatch.phone;
+            phoneFromHistory = true;
+          }
+        }
         const days = borrowIntent.days;
         const displayPhoto = uploadedPhotoUrl || getDefaultCategoryPhoto(cat);
+        const inlineNewWaId = `express-new-wa-${Date.now()}`;
 
         appendBotChat(`
           <div class="chat-new-tool-card">
@@ -2577,13 +2626,15 @@ async function processUserChatMessage(rawText, photoBase64 = null) {
                 <div class="express-data-val">${days} Hari</div>
               </div>
               <div class="express-data-item" style="grid-column:span 2;">
-                <div class="express-data-lbl">WhatsApp</div>
-                <div class="express-data-val">${phone ? esc(phone) : '<span style="color:var(--text-muted);font-weight:normal;">Belum dicantumkan</span>'}</div>
+                <div class="express-data-lbl">WhatsApp ${phoneFromHistory ? '<span style="color:var(--green-text);font-weight:700;">(📱 Otomatis dari riwayat)</span>' : ''}</div>
+                ${phone
+                  ? `<div class="express-data-val">${esc(phone)}</div>`
+                  : `<input type="tel" id="${inlineNewWaId}" class="form-input" style="height:32px;font-size:12px;margin-top:4px;" placeholder="Warga baru: ketik No. WA (opsional)">`}
               </div>
             </div>
 
             <div class="express-actions-col">
-              <button class="btn-act btn-primary-action btn-sm" id="btn-reg-borrow-direct" onclick="registerAndBorrowDirectly('${esc(newTool)}', '${esc(cat)}', '${uploadedPhotoUrl}', '${esc(name)}', '${esc(phone)}', ${days})">
+              <button class="btn-act btn-primary-action btn-sm" id="btn-reg-borrow-direct" onclick="registerAndBorrowDirectly('${esc(newTool)}', '${esc(cat)}', '${uploadedPhotoUrl}', '${esc(name)}', '${esc(phone)}', ${days}, '${inlineNewWaId}')">
                 ⚡ Daftar &amp; Pinjamkan
               </button>
               <button class="btn-act btn-subtle-action btn-sm" onclick="registerToolOnly('${esc(newTool)}', '${esc(cat)}', '${uploadedPhotoUrl}')">
@@ -2742,8 +2793,8 @@ async function processUserChatMessage(rawText, photoBase64 = null) {
       return;
     }
 
-    // 4B. Intent: Riwayat / Log Aktivitas 7 Hari Terakhir
-    if (query.includes('riwayat') || query.includes('histori') || query.includes('log') || query.includes('7 hari') || query.includes('aktivitas')) {
+    // 4B. Intent: Riwayat / Log Aktivitas 7 Hari Terakhir / Peminjam Terakhir
+    if (query.includes('riwayat') || query.includes('histori') || query.includes('log') || query.includes('7 hari') || query.includes('aktivitas') || query.includes('peminjam terakhir') || query.includes('siapa yang pinjam')) {
       showRecentHistoryInChat(true);
       return;
     }
