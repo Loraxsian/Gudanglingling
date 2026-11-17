@@ -313,6 +313,10 @@ function openChatDrawer() {
   const overlay = document.getElementById('chat-overlay');
   if (overlay) overlay.classList.add('open');
   scrollChatDown();
+  const input = document.getElementById('chat-user-input');
+  if (input) {
+    setTimeout(() => input.focus(), 300);
+  }
 }
 
 function closeChatDrawer() {
@@ -357,16 +361,10 @@ function setupChatDrawer() {
 }
 
 function openChatWithItem(itemId) {
-  state.selectedItem = state.items.find(i => i.id === itemId);
+  const item = state.items.find(i => i.id === itemId);
+  if (!item) return;
   openChatDrawer();
-
-  if (!state.isAuthenticated) {
-    // Selesaikan auth dulu
-    startChatSession();
-  } else {
-    // Langsung buka form peminjaman dengan alat terpilih
-    showItemAndPhotoStep();
-  }
+  sendSuggestedQuery(`Informasi dan cara pinjam ${item.name}`);
 }
 
 // ============================================================
@@ -1307,9 +1305,10 @@ function switchFaqSubTab(subTabId) {
 }
 
 // ============================================================
-// 7. DRAGGABLE CHATBOT WORKFLOW (State-Space S0 -> G)
+// 7. INTELLIGENT AI ASSISTANT CHATBOT (Conversational & Triase)
 // ============================================================
 function appendBotChat(html) {
+  hideTypingIndicator();
   const row = document.createElement('div');
   row.className = 'chat-row bot';
   row.innerHTML = `
@@ -1335,9 +1334,32 @@ function appendUserChat(text) {
   scrollChatDown();
 }
 
+function showTypingIndicator() {
+  hideTypingIndicator();
+  const row = document.createElement('div');
+  row.className = 'chat-row bot';
+  row.id = 'chat-typing-indicator';
+  row.innerHTML = `
+    <div class="bubble bubble-bot typing-indicator">
+      <span class="typing-dot"></span>
+      <span class="typing-dot"></span>
+      <span class="typing-dot"></span>
+    </div>
+  `;
+  chatDrawerBody.appendChild(row);
+  scrollChatDown();
+}
+
+function hideTypingIndicator() {
+  const ind = document.getElementById('chat-typing-indicator');
+  if (ind) ind.remove();
+}
+
 function scrollChatDown() {
   setTimeout(() => {
-    chatDrawerBody.scrollTop = chatDrawerBody.scrollHeight;
+    if (chatDrawerBody) {
+      chatDrawerBody.scrollTop = chatDrawerBody.scrollHeight;
+    }
   }, 40);
 }
 
@@ -1352,147 +1374,288 @@ function esc(str) {
     .replace(/"/g, '&quot;');
 }
 
-// State S0: PIN Auth
-function startChatSession() {
-  appendBotChat(`
-    <strong>Halo! Asisten GudangLingling siap memandu.</strong><br>
-    Masukkan PIN keamanan keluarga untuk akses sistem (Default: <code>1234</code>):
-    <div class="chat-card">
-      <div style="display:flex;gap:6px;">
-        <input type="password" id="drawer-pin-field" class="form-input" maxlength="7" placeholder="••••" value="1234">
-        <button class="btn-act btn-primary-action" style="width:80px;" onclick="verifyDrawerPin()">Buka</button>
-      </div>
-      <div id="drawer-pin-err" style="color:var(--red-text);font-size:11px;margin-top:4px;display:none;">PIN salah! Gunakan PIN default: 1234 (atau 2422031).</div>
-    </div>
-  `);
-}
-
-async function verifyDrawerPin() {
-  const pin = document.getElementById('drawer-pin-field').value.trim();
-  const errEl = document.getElementById('drawer-pin-err');
-
+// Auto-authenticate session in background so user doesn't face friction
+async function ensureAuthenticatedSession() {
+  if (state.isAuthenticated && state.sessionId) return true;
   try {
     const res = await fetch('/api/auth', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pin })
+      body: JSON.stringify({ pin: '1234' })
     });
     const data = await res.json();
-
     if (res.ok && data.success) {
       state.sessionId = data.session_id;
       state.isAuthenticated = true;
-      appendUserChat('PIN Terverifikasi');
-
-      if (state.selectedItem) {
-        showItemAndPhotoStep();
-      } else {
-        showDynamicWelcomeAndQuickReplies();
-      }
-    } else {
-      errEl.style.display = 'block';
+      return true;
     }
   } catch (err) {
-    showToast('Koneksi server gagal. Periksa PIN dan coba lagi.', 'warn');
+    console.warn('Session init warning:', err);
   }
+  return false;
 }
 
-// Dynamic Welcome & Quick Reply Chips
-function showDynamicWelcomeAndQuickReplies() {
-  const totalItems = state.items.length;
-  const availableItems = state.items.filter(it => it.status === 'AVAILABLE').length;
-  const borrowedItems = state.items.filter(it => it.status === 'BORROWED').length;
+// Start / Welcome Greeting
+async function startChatSession() {
+  await ensureAuthenticatedSession();
 
-  let greetingText = '';
-  if (totalItems === 0) {
-    greetingText = `<strong>PIN Benar! Halo, selamat datang di GudangLingling AI.</strong><br>Saat ini gudang masih bersih dan belum ada perkakas yang tercatat. Ada yang bisa saya bantu?`;
-  } else {
-    greetingText = `<strong>PIN Benar! Halo, selamat datang di GudangLingling AI.</strong><br>Saat ini terdapat <strong>${availableItems} alat tersedia</strong>${borrowedItems > 0 ? ` dan <strong>${borrowedItems} alat sedang dipinjam</strong>` : ' di gudang'}. Ada yang bisa saya bantu?`;
-  }
+  let availableCount = 0;
+  let borrowedCount = 0;
+  let lockedCount = 0;
+  (state.items || []).forEach(it => {
+    if (it.status === 'AVAILABLE') availableCount++;
+    else if (it.status === 'BORROWED') borrowedCount++;
+    else if (it.status === 'MAINTENANCE_LOCKED') lockedCount++;
+  });
+
+  const hour = new Date().getHours();
+  let timeGreeting = 'Selamat Pagi';
+  if (hour >= 11 && hour < 15) timeGreeting = 'Selamat Siang';
+  else if (hour >= 15 && hour < 18) timeGreeting = 'Selamat Sore';
+  else if (hour >= 18 || hour < 4) timeGreeting = 'Selamat Malam';
 
   appendBotChat(`
-    ${greetingText}
-    <div style="margin-top:10px;display:flex;flex-direction:column;gap:6px;">
-      <button class="chat-quick-btn" onclick="handleChatQuickAction('add_item')">
-        <span style="font-size:14px;color:var(--primary);font-weight:bold;">+</span>
-        <span>Tambah Alat Baru ke Inventaris</span>
-      </button>
-      <button class="chat-quick-btn" onclick="handleChatQuickAction('borrow_tool')">
-        <span style="font-size:12px;color:var(--green-text);">&#9658;</span>
-        <span>Pinjam Alat & Triase Risiko AI</span>
-      </button>
-      <button class="chat-quick-btn" onclick="handleChatQuickAction('check_borrowers')">
-        <span style="font-size:12px;color:var(--yellow-text);">&#9679;</span>
-        <span>Cek Status & Antrean Peminjam</span>
-      </button>
-      <button class="chat-quick-btn" onclick="handleChatQuickAction('view_faq')">
-        <span style="font-size:12px;color:#60a5fa;">?</span>
-        <span>Cara Kerja Sistem Pakar AI</span>
-      </button>
+    <div class="chat-hero-card">
+      <div class="chat-hero-header">
+        <span class="status-pulse-dot green" style="position:static;"></span>
+        <span>${timeGreeting}! Saya Asisten GudangLingling.</span>
+      </div>
+      <div class="chat-hero-desc">
+        Sistem pakar inventaris perkakas warga. Saya siap membantu pengecekan alat ready, triase keselamatan fisik, hingga rekomendasi alat.
+      </div>
+      <div class="chat-status-strip">
+        <div class="chat-status-pill">
+          <div class="val" style="color:var(--green-text);">${availableCount}</div>
+          <div class="lbl">Ready</div>
+        </div>
+        <div class="chat-status-pill">
+          <div class="val" style="color:var(--yellow-text);">${borrowedCount}</div>
+          <div class="lbl">Dipinjam</div>
+        </div>
+        <div class="chat-status-pill">
+          <div class="val" style="color:var(--red-text);">${lockedCount}</div>
+          <div class="lbl">Terkunci</div>
+        </div>
+      </div>
+      <div style="font-size:11.5px;color:var(--text-secondary);line-height:1.4;">
+        Ketik pertanyaanmu di kolom bawah, atau pilih salah satu menu cepat:
+      </div>
+      <div style="display:flex;flex-direction:column;gap:5px;margin-top:8px;">
+        <button class="btn-act btn-primary-action btn-sm" style="width:100%;text-align:left;display:flex;justify-content:space-between;align-items:center;" onclick="handleChatQuickAction('borrow_tool')">
+          <span>Form Pinjam Cepat (Smart Wizard)</span>
+          <span>&rarr;</span>
+        </button>
+        <button class="btn-act btn-subtle-action btn-sm" style="width:100%;text-align:left;display:flex;justify-content:space-between;align-items:center;" onclick="handleChatQuickAction('check_ready')">
+          <span>Lihat Alat yang Sedang Ready</span>
+          <span>&rsaquo;</span>
+        </button>
+        <button class="btn-act btn-subtle-action btn-sm" style="width:100%;text-align:left;display:flex;justify-content:space-between;align-items:center;" onclick="handleChatQuickAction('add_item')">
+          <span>+ Tambah Alat Baru ke Rak</span>
+          <span>&rsaquo;</span>
+        </button>
+      </div>
     </div>
   `);
 }
 
+function restartChatConversation() {
+  if (chatDrawerBody) chatDrawerBody.innerHTML = '';
+  startChatSession();
+  showToast('Percakapan asisten dimulai ulang.', 'info');
+}
+
+function sendSuggestedQuery(text) {
+  const input = document.getElementById('chat-user-input');
+  if (input) input.value = text;
+  processUserChatMessage(text);
+}
+
+function handleChatSubmit(e) {
+  e.preventDefault();
+  const input = document.getElementById('chat-user-input');
+  if (!input) return;
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  processUserChatMessage(text);
+}
+
+// Conversational AI Parser (Intelligent Natural Responses)
+function processUserChatMessage(rawText) {
+  appendUserChat(rawText);
+  showTypingIndicator();
+
+  const query = rawText.toLowerCase().trim();
+
+  setTimeout(() => {
+    // 1. Intent: Siapa Pengembang / Info Akademik
+    if (query.includes('pengembang') || query.includes('developer') || query.includes('liana') || query.includes('iteba') || query.includes('dosen') || query.includes('caniago') || query.includes('nim') || query.includes('kampus')) {
+      appendBotChat(`
+        <strong>Informasi Pengembang Sistem:</strong><br>
+        Aplikasi <strong>GudangLingling AI</strong> dikembangkan sebagai tugas proyek sistem pakar:<br>
+        <div style="background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:8px;padding:10px;margin-top:6px;font-size:12px;line-height:1.5;">
+          <strong>Nama:</strong> Liana Sry Astuti<br>
+          <strong>NIM:</strong> 2422031<br>
+          <strong>Program Studi:</strong> Teknik Komputer<br>
+          <strong>Institusi:</strong> Institut Teknologi Batam (ITEBA)<br>
+          <strong>Dosen Pengampu:</strong> Bapak Deosa Putra Caniago, M.Kom<br>
+          <strong>Modul AI:</strong> State-Space (3.2), Forward Chaining &amp; CF (6.7), Heuristic Risk Triase (4.5)
+        </div>
+      `);
+      return;
+    }
+
+    // 2. Intent: Aturan Pinjam / Durasi / Biaya / Rusak
+    if (query.includes('aturan') || query.includes('durasi') || query.includes('berapa hari') || query.includes('berapa lama') || query.includes('syarat') || query.includes('rusak') || query.includes('biaya') || query.includes('gratis') || query.includes('denda')) {
+      appendBotChat(`
+        <strong>Panduan &amp; Aturan Peminjaman Warga:</strong>
+        <div style="background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:8px;padding:10px;margin-top:6px;font-size:12px;line-height:1.5;">
+          <strong>1. Biaya:</strong> 100% Gratis untuk seluruh warga tetangga.<br>
+          <strong>2. Durasi Standar:</strong> 1 sampai 3 hari (dapat disesuaikan hingga beberapa hari jika ada pekerjaan bertahap).<br>
+          <strong>3. Kondisi Rusak:</strong> Jika alat bermasalah/mati mendadak, jangan dibongkar sendiri. Laporkan saat pengembalian agar otomatis masuk karantina servis.<br>
+          <strong>4. Bukti Foto:</strong> Ambil 1 foto kondisi fisik alat saat pinjam demi transparansi kondisi awal dan akhir.
+        </div>
+      `);
+      return;
+    }
+
+    // 3. Intent: 3 Zona Triase Risiko AI
+    if (query.includes('zona') || query.includes('triase') || query.includes('forward chaining') || query.includes('certainty factor') || query.includes('heuristik') || query.includes('cara kerja ai') || query.includes('sistem pakar')) {
+      appendBotChat(`
+        <strong>3 Zona Triase Keputusan AI:</strong>
+        <div style="display:flex;flex-direction:column;gap:6px;margin-top:6px;">
+          <div style="background:var(--green-bg);border:1px solid var(--green-border);padding:8px 10px;border-radius:6px;font-size:11.5px;">
+            <strong style="color:var(--green-text);">ZONA HIJAU (Skor h(S) &lt; 30)</strong><br>
+            Alat dalam kondisi prima dan terawat. Langsung disetujui untuk dipinjam.
+          </div>
+          <div style="background:var(--yellow-bg);border:1px solid var(--yellow-border);padding:8px 10px;border-radius:6px;font-size:11.5px;">
+            <strong style="color:var(--yellow-text);">ZONA KUNING (Skor 30 &ndash; 69)</strong><br>
+            Peminjaman bersyarat. Wajib menggunakan APD (kacamata / sarung tangan).
+          </div>
+          <div style="background:var(--red-bg);border:1px solid var(--red-border);padding:8px 10px;border-radius:6px;font-size:11.5px;">
+            <strong style="color:var(--red-text);">ZONA MERAH (Skor &ge; 70)</strong><br>
+            Bahaya fatal terdeteksi (kabel sobek/bodi nyetrum). Ditolak &amp; terkunci otomatis.
+          </div>
+        </div>
+      `);
+      return;
+    }
+
+    // 4. Intent: Tambah Alat Baru
+    if (query.includes('tambah') || query.includes('input alat') || query.includes('masukkan alat') || query.includes('daftar alat baru')) {
+      appendBotChat(`
+        Ingin mencatat perkakas baru ke dalam inventaris gudang?<br>
+        Klik tombol di bawah untuk membuka formulir pencatatan lengkap dengan foto:
+        <div style="margin-top:8px;">
+          <button class="btn-act btn-primary-action btn-sm" onclick="closeChatDrawer(); openAddItemModal();">
+            + Buka Form Tambah Alat
+          </button>
+        </div>
+      `);
+      return;
+    }
+
+    // 5. Intent: Cek Alat Ready / Kueri Alat Spesifik
+    const matches = (state.items || []).filter(it => {
+      const name = it.name.toLowerCase();
+      const cat = (it.category || '').toLowerCase();
+      const desc = (it.description || '').toLowerCase();
+      if (query.includes('ready') || query.includes('tersedia') || query.includes('ada apa') || query.includes('semua alat')) {
+        return it.status === 'AVAILABLE';
+      }
+      return query.split(' ').some(word => word.length >= 3 && (name.includes(word) || cat.includes(word) || desc.includes(word)));
+    });
+
+    if (matches.length > 0) {
+      const cardsHtml = matches.slice(0, 4).map(it => {
+        const isReady = it.status === 'AVAILABLE';
+        const badgeColor = isReady ? 'var(--green-text)' : 'var(--yellow-text)';
+        const statusTxt = isReady ? 'Ready' : (it.status === 'BORROWED' ? 'Dipinjam' : 'Lockout');
+        const photo = it.last_photo_url || '/img/bor.svg';
+        const actionBtn = isReady
+          ? `<button class="chat-tool-btn" onclick="closeChatDrawer(); openBorrowWizard(${it.id});">Pinjam</button>`
+          : `<span style="font-size:10.5px;color:var(--text-muted);font-weight:600;">${statusTxt}</span>`;
+
+        return `
+          <div class="chat-tool-card">
+            <img class="chat-tool-thumb" src="${photo}" alt="${esc(it.name)}" onerror="this.onerror=null; this.src='/img/bor.svg';">
+            <div class="chat-tool-info">
+              <div class="chat-tool-name">${esc(it.name)}</div>
+              <div class="chat-tool-sub">${esc(it.category)} &bull; <strong style="color:${badgeColor};">${statusTxt}</strong></div>
+            </div>
+            ${actionBtn}
+          </div>
+        `;
+      }).join('');
+
+      appendBotChat(`
+        Ditemukan <strong>${matches.length} peralatan</strong> yang sesuai:<br>
+        ${cardsHtml}
+      `);
+      return;
+    }
+
+    // 6. Intent: Salam / Sapaan Ramah
+    if (query.includes('halo') || query.includes('hai') || query.includes('hi') || query.includes('selamat') || query.includes('pagi') || query.includes('siang') || query.includes('malam') || query.includes('assalamu')) {
+      appendBotChat(`
+        Halo! Ada yang bisa saya bantu terkait peralatan gudang warga hari ini?<br>
+        Kamu bisa langsung ketik nama perkakas yang ingin dicari (misal: <em>"bor"</em>, <em>"gerinda"</em>, atau <em>"tangga"</em>), atau klik salah satu topik di bawah.
+      `);
+      return;
+    }
+
+    // 7. Fallback Cerdas
+    appendBotChat(`
+      Saya siap membantu Anda. Untuk mempermudah, Anda dapat:<br>
+      <div style="display:flex;flex-direction:column;gap:5px;margin-top:6px;">
+        <button class="chat-quick-btn" onclick="sendSuggestedQuery('Alat apa saja yang sedang ready?')">
+          <span>&bull;</span> Cek Alat yang Ready Dipinjam
+        </button>
+        <button class="chat-quick-btn" onclick="sendSuggestedQuery('Bagaimana aturan dan durasi pinjam?')">
+          <span>&bull;</span> Lihat Aturan &amp; Durasi Pinjam
+        </button>
+        <button class="chat-quick-btn" onclick="sendSuggestedQuery('Jelaskan 3 Zona Triase Risiko AI')">
+          <span>&bull;</span> Pelajari Triase Risiko AI
+        </button>
+      </div>
+    `);
+  }, 350);
+}
+
 function handleChatQuickAction(action) {
   if (action === 'add_item') {
-    appendUserChat('Tambah Alat Baru');
-    appendBotChat('Membuka formulir pencatatan alat baru ke inventaris gudang...');
-    setTimeout(() => {
-      closeChatDrawer();
-      openAddItemModal();
-    }, 400);
+    closeChatDrawer();
+    openAddItemModal();
   } else if (action === 'borrow_tool') {
-    appendUserChat('Pinjam Alat');
-    const available = state.items.filter(it => it.status === 'AVAILABLE');
+    const available = (state.items || []).filter(it => it.status === 'AVAILABLE');
     if (!state.items.length) {
       appendBotChat(`
         Belum ada peralatan di inventaris gudang.<br>
-        Silakan tambahkan alat terlebih dahulu sebelum memproses peminjaman:
+        Silakan tambahkan perkakas terlebih dahulu:
         <div style="margin-top:8px;">
           <button class="btn-act btn-primary-action btn-sm" onclick="closeChatDrawer(); openAddItemModal();">+ Tambah Alat Sekarang</button>
         </div>
       `);
     } else if (!available.length) {
-      appendBotChat('Saat ini semua perkakas sedang dipinjam atau dalam servis.');
+      appendBotChat('Saat ini semua perkakas sedang dipinjam atau dalam perbaikan.');
     } else {
       const toolBtns = available.map(t => `
-        <button class="btn-act btn-primary-action btn-sm" style="margin-top:5px;display:block;width:100%;text-align:left;" onclick="closeChatDrawer(); openBorrowWizard(${t.id});">
-          Pinjam: ${esc(t.name)} (${esc(t.category)})
-        </button>
+        <div class="chat-tool-card" style="margin-top:5px;">
+          <img class="chat-tool-thumb" src="${t.last_photo_url || '/img/bor.svg'}" alt="${esc(t.name)}" onerror="this.onerror=null; this.src='/img/bor.svg';">
+          <div class="chat-tool-info">
+            <div class="chat-tool-name">${esc(t.name)}</div>
+            <div class="chat-tool-sub">${esc(t.category)} &bull; ${t.power_watts ? t.power_watts + 'W' : 'Non-Listrik'}</div>
+          </div>
+          <button class="chat-tool-btn" onclick="closeChatDrawer(); openBorrowWizard(${t.id});">Pinjam</button>
+        </div>
       `).join('');
       appendBotChat(`
-        Pilih alat yang ingin Anda pinjam untuk membuka <strong>Formulir Pinjam Cepat (Smart Wizard 3 Langkah)</strong>:
-        <div style="margin-top:8px;">${toolBtns}</div>
+        Pilih alat untuk membuka <strong>Formulir Pinjam Cepat (Smart Wizard 3 Langkah)</strong>:
+        <div style="margin-top:6px;">${toolBtns}</div>
       `);
     }
-  } else if (action === 'check_borrowers') {
-    appendUserChat('Cek Antrean Peminjam');
-    const borrowed = state.items.filter(it => it.status === 'BORROWED');
-    if (!borrowed.length) {
-      appendBotChat('Saat ini tidak ada alat yang sedang dipinjam. Semua peralatan tersimpan aman di gudang!');
-    } else {
-      const listHtml = borrowed.map(b => `&bull; <strong>${esc(b.name)}</strong>: Dipinjam oleh <em>${esc(b.active_borrower || 'Keluarga')}</em>`).join('<br>');
-      appendBotChat(`
-        Daftar peminjaman aktif saat ini:<br>
-        ${listHtml}
-        <div style="margin-top:8px;">
-          <button class="btn-act btn-subtle-action btn-sm" onclick="closeChatDrawer(); document.querySelector('[data-tab=message]').click();">Buka Menu Message</button>
-        </div>
-      `);
-    }
-  } else if (action === 'view_faq') {
-    appendUserChat('Cara Kerja AI');
-    appendBotChat(`
-      <strong>Sistem Pakar GudangLingling AI</strong> menggabungkan 3 modul perkuliahan:
-      <ol style="margin:6px 0 6px 18px;font-size:12px;line-height:1.5;">
-        <li><strong>Modul 3.2 (State-Space S0 &rarr; G):</strong> Memandu alur percakapan & fakta lapangan.</li>
-        <li><strong>Modul 6.7 (Forward Chaining & CF):</strong> Mesin inferensi kaidah rule pakar R01–R15 dengan Certainty Factor.</li>
-        <li><strong>Modul 4.5 (Heuristic Risk Triase):</strong> Evaluasi 3 zona keselamatan (Hijau, Kuning, Merah).</li>
-      </ol>
-      <div style="margin-top:6px;">
-        <button class="btn-act btn-subtle-action btn-sm" onclick="closeChatDrawer(); document.querySelector('[data-tab=faq]').click(); switchFaqSubTab('teknis');">Buka Dokumentasi Teknis di Menu FaQ</button>
-      </div>
-    `);
+  } else if (action === 'check_ready') {
+    sendSuggestedQuery('Alat apa saja yang sedang ready?');
   }
 }
 

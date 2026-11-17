@@ -8,7 +8,7 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32x32.png">
   <link rel="icon" type="image/png" sizes="64x64" href="/img/favicon-64x64.png">
   <link rel="apple-touch-icon" href="/img/logo-emblem.png">
-  <link rel="stylesheet" href="/css/style.css?v=2.5">
+  <link rel="stylesheet" href="/css/style.css?v=3.0">
 </head>
 <body>
 
@@ -407,19 +407,70 @@
 <div class="chat-overlay" id="chat-overlay" onclick="closeChatDrawer()"></div>
 
 <div class="chat-drawer" id="chat-drawer">
+  <!-- Modern Header with AI Persona & Quick Controls -->
   <div class="drawer-header">
-    <div class="drawer-title">
-      <img src="/img/logo-emblem.png" alt="Logo" class="drawer-logo-img">
-      <span class="status-pulse-dot green"></span>
-      <span>GudangLingling Asisten</span>
+    <div class="drawer-avatar-wrap">
+      <img src="/img/logo-emblem.png" alt="GudangLingling AI" class="drawer-logo-img">
+      <span class="status-pulse-dot green" title="Sistem Pakar AI Online"></span>
+    </div>
+    <div class="drawer-header-meta">
+      <div class="drawer-header-title">
+        <span>Asisten GudangLingling</span>
+        <span class="ai-pill-tag">AI Pakar</span>
+      </div>
+      <div class="drawer-header-sub">Online &bull; Triase Risiko &amp; Konsultasi Alat</div>
     </div>
     <div class="drawer-actions">
-      <button class="btn-drawer btn-drawer-close" id="btn-close-chat" onclick="closeChatDrawer()" title="Tutup Chatbot">&times; Tutup</button>
-      <button class="btn-drawer" id="btn-restart-chat" title="Mulai Ulang Percakapan">&#8635;</button>
+      <button class="btn-drawer-icon" id="btn-restart-chat" title="Mulai Ulang Percakapan" onclick="restartChatConversation()">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="1 4 1 10 7 10"></polyline>
+          <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+        </svg>
+      </button>
+      <button class="btn-drawer-icon btn-drawer-close" id="btn-close-chat" onclick="closeChatDrawer()" title="Tutup Asisten">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
     </div>
   </div>
+
+  <!-- Chat Messages Stream Body -->
   <div class="drawer-body" id="chat-drawer-body">
-    <!-- Chat messages injected by JS -->
+    <!-- Messages injected dynamically by JS -->
+  </div>
+
+  <!-- Quick Suggestion Action Carousel (Chips) -->
+  <div class="chat-suggestions-bar" id="chat-suggestions-bar">
+    <button class="suggestion-chip" onclick="sendSuggestedQuery('Alat apa saja yang sedang ready?')">
+      <span>Cek Alat Ready</span>
+    </button>
+    <button class="suggestion-chip" onclick="sendSuggestedQuery('Bagaimana aturan dan durasi pinjam?')">
+      <span>Aturan Pinjam</span>
+    </button>
+    <button class="suggestion-chip" onclick="sendSuggestedQuery('Jelaskan 3 Zona Triase Risiko AI')">
+      <span>Zona Triase</span>
+    </button>
+    <button class="suggestion-chip" onclick="sendSuggestedQuery('Rekomendasi alat untuk pertukangan listrik')">
+      <span>Alat Listrik</span>
+    </button>
+    <button class="suggestion-chip" onclick="sendSuggestedQuery('Siapa pengembang aplikasi ini?')">
+      <span>Info Pengembang</span>
+    </button>
+  </div>
+
+  <!-- Interactive Chat Composer Input Bar -->
+  <div class="chat-composer-wrap">
+    <form class="chat-composer-form" id="chat-composer-form" onsubmit="handleChatSubmit(event)">
+      <input type="text" id="chat-user-input" class="chat-user-input" placeholder="Tanya tentang alat, aturan, atau cara pinjam..." autocomplete="off">
+      <button type="submit" class="btn-chat-send" id="btn-chat-send" title="Kirim Pertanyaan">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="22" y1="2" x2="11" y2="13"></line>
+          <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+        </svg>
+      </button>
+    </form>
   </div>
 </div>
 
@@ -673,6 +724,6 @@
 <!-- ==================== TOAST NOTIFICATION CONTAINER ==================== -->
 <div class="app-toast" id="app-toast"></div>
 
-<script src="/js/app.js?v=2.5"></script>
+<script src="/js/app.js?v=3.0"></script>
 </body>
 </html>
