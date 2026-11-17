@@ -1,0 +1,25 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Runtime logs and PID
+*.log
+server.log
+server.pid
+
+# SQLite Database (generated on first run / docker volume)
+database/*.db
+database/*.db-journal
+
+# Uploaded images during runtime (keep directory via .gitkeep)
+static/uploads/*
+!static/uploads/.gitkeep
+
+# Environments & OS files
+.env
+.venv
+env/
+venv/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>GudangLingling AI — Peminjaman & Triase Risiko</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+<div class="app-shell">
+
+  <!-- ==================== TOP APP HEADER ==================== -->
+  <header class="app-header">
+    <div class="brand-wrapper">
+      <div class="brand-icon">GL</div>
+      <div>
+        <div class="brand-name">GudangLingling AI</div>
+        <div class="brand-sub">Sistem Pakar Peminjaman Alat Rumah Tangga</div>
+      </div>
+    </div>
+
+    <!-- Desktop Navigation Tabs (>= 768px) -->
+    <nav class="desktop-nav">
+      <button class="desktop-nav-btn active" data-tab="beranda">Beranda</button>
+      <button class="desktop-nav-btn" data-tab="message">Message</button>
+      <button class="desktop-nav-btn" data-tab="faq">FaQ</button>
+    </nav>
+  </header>
+
+  <!-- ==================== MAIN CONTENT AREA ==================== -->
+  <main class="content-area">
+
+    <!-- ========================================================
+         MENU 1: BERANDA (Dashboard & Manajemen Inventaris Visual)
+         ======================================================== -->
+    <div class="tab-pane active" id="pane-beranda">
+
+      <!-- 1. Ringkasan Status Metrik -->
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <div class="metric-card-label">Tersedia</div>
+          <div class="metric-card-value" id="stat-available" style="color:var(--green-text);">0</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-card-label">Dipinjam</div>
+          <div class="metric-card-value" id="stat-borrowed" style="color:var(--yellow-text);">0</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-card-label">Terkunci</div>
+          <div class="metric-card-value" id="stat-locked" style="color:var(--red-text);">0</div>
+        </div>
+      </div>
+
+      <!-- 2. Pencarian Cepat & Filter Kategori -->
+      <div class="search-filter-row">
+        <input type="text" id="search-input" class="search-input" placeholder="Cari alat (contoh: bor, gerinda, tangga)...">
+        <select id="filter-category" class="filter-select">
+          <option value="ALL">Semua Kategori</option>
+          <option value="Pertukangan Listrik">Listrik</option>
+          <option value="Pertukangan Ringan">Pertukangan</option>
+          <option value="Perkebunan">Kebun</option>
+          <option value="Akses Ketinggian">Tangga</option>
+          <option value="Peralatan Air & Cuci">Air & Cuci</option>
+        </select>
+      </div>
+
+      <!-- 3. Grid Inventaris Visual -->
+      <div class="inventory-grid" id="inventory-grid">
+        <!-- Asset Cards injected dynamically by JS -->
+      </div>
+    </div>
+
+    <!-- ========================================================
+         MENU 2: MESSAGE (Log Notifikasi & Pengingat Kontak)
+         ======================================================== -->
+    <div class="tab-pane" id="pane-message">
+
+      <!-- Antrean Pengingat Tenggat Waktu -->
+      <div class="section-box">
+        <div class="section-head">
+          <div class="section-head-title">Antrean Pengingat Pengembalian</div>
+          <button class="btn-act btn-subtle-action btn-sm" style="width:auto;" onclick="pickDeviceContact()">Sinkron Kontak HP</button>
+        </div>
+        <div id="reminder-list">
+          <!-- Reminder Tiles injected by JS -->
+        </div>
+      </div>
+
+      <!-- Log Arsip Email Otomatis -->
+      <div class="section-box">
+        <div class="section-head">
+          <div class="section-head-title">Log Arsip Email Bukti Digital</div>
+          <span style="font-size:11px;color:var(--text-muted);">Backup Otomatis</span>
+        </div>
+        <div class="email-table-wrap">
+          <table class="email-table">
+            <thead>
+              <tr>
+                <th>Waktu</th>
+                <th>Peminjam</th>
+                <th>Keterangan Bukti</th>
+                <th>Status Arsip</th>
+              </tr>
+            </thead>
+            <tbody id="email-log-body">
+              <!-- Email logs injected by JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ========================================================
+         MENU 3: FAQ (Transparansi AI & Panduan Keselamatan)
+         ======================================================== -->
+    <div class="tab-pane" id="pane-faq">
+
+      <!-- Panduan 3 Zona Triase -->
+      <div class="section-box">
+        <div class="section-head-title" style="margin-bottom:10px;">Panduan 3 Zona Keputusan Triase Risiko</div>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <div style="background:var(--green-bg);border:1px solid var(--green-border);padding:10px;border-radius:6px;">
+            <strong style="color:var(--green-text);font-size:12.5px;">ZONA HIJAU (Skor h(S) &lt; 30) — Layak Dipinjamkan Langsung</strong>
+            <p style="font-size:11.5px;color:var(--text-secondary);margin-top:2px;">Alat dalam kondisi prima dan terawat. Semua pengaman bekerja normal. Peminjaman langsung disetujui.</p>
+          </div>
+          <div style="background:var(--yellow-bg);border:1px solid var(--yellow-border);padding:10px;border-radius:6px;">
+            <strong style="color:var(--yellow-text);font-size:12.5px;">ZONA KUNING (Skor 30 &le; h(S) &le; 69) — Peminjaman Bersyarat / Wajib APD</strong>
+            <p style="font-size:11.5px;color:var(--text-secondary);margin-top:2px;">Terdeteksi keausan ringan (mata tumpul) atau peminjam pemula. Wajib memakai kacamata keselamatan / sarung tangan tebal.</p>
+          </div>
+          <div style="background:var(--red-bg);border:1px solid var(--red-border);padding:10px;border-radius:6px;">
+            <strong style="color:var(--red-text);font-size:12.5px;">ZONA MERAH (Skor h(S) &ge; 70) — Ditolak & Lockout Karantina</strong>
+            <p style="font-size:11.5px;color:var(--text-secondary);margin-top:2px;">Terdeteksi bahaya fatal (kabel terkelupas, bodi nyetrum, piringan retak, atau anak di bawah umur). Peminjaman otomatis ditolak dan alat dikunci.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Transparansi Cara Kerja AI (Materi Kuliah Pak Deosa Caniago) -->
+      <div class="section-box">
+        <div class="section-head-title" style="margin-bottom:8px;">Cara Kerja Sistem Pakar GudangLingling AI</div>
+        <p style="font-size:12px;color:var(--text-secondary);margin-bottom:10px;line-height:1.5;">
+          Sistem ini mengintegrasikan 3 modul mata kuliah Artificial Intelligence ITEBA:
+        </p>
+
+        <div style="display:flex;flex-direction:column;gap:6px;">
+          <div class="faq-card">
+            <button class="faq-question" onclick="toggleFaq(this)">
+              <span>Modul 3.2: State-Space Representation</span>
+              <span>+</span>
+            </button>
+            <div class="faq-answer">
+              Alur pemodelan ruang keadaan dari S0 (Autentikasi PIN 1234) &rarr; S1 (Pemilihan Alat & Bukti Foto) &rarr; S2 (Pemeriksaan Fisik F01-F12) &rarr; S3 (Profil Peminjam F13-F20) &rarr; S4 (Mesin Inferensi) &rarr; G (Goal Decision & WhatsApp Action).
+            </div>
+          </div>
+
+          <div class="faq-card">
+            <button class="faq-question" onclick="toggleFaq(this)">
+              <span>Modul 6.7: Forward Chaining & Certainty Factor</span>
+              <span>+</span>
+            </button>
+            <div class="faq-answer">
+              Mesin inferensi mencocokkan fakta aktif ke dalam 15 Kaidah Produksi (R01-R15). Nilai kepastian dihitung dengan rumus: <code>CF(H,E) = CF(E) &times; CF_pakar</code> dan dikombinasikan dengan <code>CF_combine = CF1 + CF2 &times; (1 - CF1)</code>.
+            </div>
+          </div>
+
+          <div class="faq-card">
+            <button class="faq-question" onclick="toggleFaq(this)">
+              <span>Modul 4.5: Heuristic Risk Evaluation Function h(S)</span>
+              <span>+</span>
+            </button>
+            <div class="faq-answer">
+              Fungsi evaluasi heuristik menghitung total akumulasi bahaya: <code>h(S) = min(100, &sum; [w_i &times; CF_user(F_i)])</code>. Jika ditemukan red flag kritis fatal, sistem mengaktifkan override otomatis ke Zona Merah (&ge; 80).
+            </div>
+          </div>
+
+          <div class="faq-card">
+            <button class="faq-question" onclick="toggleFaq(this)">
+              <span>15 Kaidah Produksi (Rules R01 - R15) Lengkap</span>
+              <span>+</span>
+            </button>
+            <div class="faq-answer" id="faq-rules-list">
+              <!-- Rules injected dynamically -->
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Aturan Pakai & Kontak Darurat -->
+      <div class="section-box">
+        <div class="section-head-title" style="margin-bottom:6px;">Aturan Peminjaman & Kontak Darurat</div>
+        <p style="font-size:12px;color:var(--text-secondary);line-height:1.5;">
+          1. Wajib mengembalikan alat dalam kondisi bersih dan kabel digulung rapi.<br>
+          2. Laporkan segera jika terjadi percikan atau getaran aneh pada alat.<br>
+          3. Pengelola Utama Rumah: <strong>Liana Sry Astuti (NIM: 2422031)</strong> — Teknik Komputer ITEBA.
+        </p>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- ==================== BOTTOM NAVIGATION BAR (Mobile 3 Menus) ==================== -->
+  <nav class="bottom-nav">
+    <button class="nav-tab-item active" data-tab="beranda">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2">
+        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+        <polyline points="9 22 9 12 15 12 15 22"/>
+      </svg>
+      <span class="nav-tab-label">Beranda</span>
+    </button>
+    <button class="nav-tab-item" data-tab="message">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+      </svg>
+      <span class="nav-tab-label">Message</span>
+    </button>
+    <button class="nav-tab-item" data-tab="faq">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2">
+        <circle cx="12" cy="12" r="10"/>
+        <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+        <line x1="12" y1="17" x2="12.01" y2="17"/>
+      </svg>
+      <span class="nav-tab-label">FaQ</span>
+    </button>
+  </nav>
+
+</div><!-- .app-shell -->
+
+<!-- ==================== DRAGGABLE FLOATING CHATBOT BUBBLE ==================== -->
+<div class="floating-bubble" id="floating-bubble" title="Buka Asisten Chatbot AI">
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <path d="M12 2a2 2 0 0 1 2 2v2h4a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4V4a2 2 0 0 1 2-2z"/>
+    <circle cx="9" cy="12" r="1.5"/>
+    <circle cx="15" cy="12" r="1.5"/>
+  </svg>
+  <span class="bubble-indicator"></span>
+</div>
+
+<!-- ==================== CHAT DRAWER / POPUP MODAL ==================== -->
+<div class="chat-drawer" id="chat-drawer">
+  <div class="drawer-header">
+    <div class="drawer-title">
+      <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#22c55e;"></span>
+      <span>GudangLingling AI Asisten</span>
+    </div>
+    <div class="drawer-actions">
+      <button class="btn-drawer" id="btn-minimize-chat" title="Perkecil ke Gelembung">&minus;</button>
+      <button class="btn-drawer" id="btn-restart-chat" title="Mulai Ulang Percakapan">&#8635;</button>
+    </div>
+  </div>
+  <div class="drawer-body" id="chat-drawer-body">
+    <!-- Chat messages injected by JS -->
+  </div>
+</div>
+
+<!-- ==================== SIDE-BY-SIDE RETURN PHOTO CHECK MODAL ==================== -->
+<div class="modal-overlay" id="modal-return-check">
+  <div class="modal-dialog">
+    <div class="modal-dialog-header">
+      <strong style="font-size:13.5px;">Pengecekan Pengembalian Alat (Side-by-Side)</strong>
+      <button class="btn-drawer" onclick="closeReturnModal()">&times;</button>
+    </div>
+    <div class="modal-dialog-body">
+      <div style="font-size:12px;color:var(--text-secondary);" id="return-modal-subtitle">
+        Bandingkan foto kondisi saat dipinjam dengan foto kondisi pengembalian saat ini:
+      </div>
+
+      <div class="comparison-grid">
+        <div class="compare-box">
+          <div class="compare-box-label">Foto Saat Dipinjam</div>
+          <img id="comp-initial-img" class="compare-img" src="/img/bor.svg" alt="Foto Pinjam">
+        </div>
+        <div class="compare-box">
+          <div class="compare-box-label">Foto Kondisi Sekarang (Kamera)</div>
+          <img id="comp-return-img" class="compare-img" src="/img/bor.svg" alt="Foto Kembali">
+        </div>
+      </div>
+
+      <div style="background:var(--bg-app);padding:10px;border-radius:6px;border:1px solid var(--border-subtle);">
+        <label class="form-label">Ambil Foto Fisik Alat Saat Ini (Kamera HP)</label>
+        <input type="file" id="return-camera-input" accept="image/*" capture="environment" class="form-input" style="padding-top:6px;">
+      </div>
+
+      <div style="display:flex;gap:8px;margin-top:6px;">
+        <button class="btn-act btn-primary-action" id="btn-confirm-return">Verifikasi & Selesaikan Pengembalian</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/js/app.js"></script>
+</body>
+</html>

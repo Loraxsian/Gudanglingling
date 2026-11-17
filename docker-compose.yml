@@ -1,0 +1,23 @@
+services:
+  gudanglingling:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: gudanglingling-ai:latest
+    container_name: gudanglingling-app
+    restart: unless-stopped
+    ports:
+      - "8085:8085"
+    volumes:
+      # Data Persistence (SQLite database & camera uploads tetap awet)
+      - ./database:/app/database
+      - ./static/uploads:/app/static/uploads
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8085
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8085/api/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
