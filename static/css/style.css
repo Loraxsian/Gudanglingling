@@ -1273,31 +1273,37 @@ html, body {
   display: block;
 }
 
-/* Chat Drawer Widget - Modern AI Assistant Experience */
+/* Chat Drawer Widget - Full-Screen on Mobile, Floating Drawer on Desktop */
 .chat-drawer {
   display: none;
   position: fixed;
-  bottom: 14px;
-  right: 12px;
-  width: calc(100% - 24px);
-  max-width: 430px;
-  height: min(650px, 85vh);
+  inset: 0;
+  width: 100%;
+  max-width: 100%;
+  height: 100dvh;
+  max-height: 100dvh;
   background: var(--bg-surface);
-  border: 1px solid var(--border-mid);
-  border-radius: 18px;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.04);
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
   z-index: 10000;
   flex-direction: column;
   overflow: hidden;
-  animation: slideUp 0.28s cubic-bezier(0.16, 1, 0.3, 1);
-  backdrop-filter: blur(12px);
+  animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @media (min-width: 600px) {
   .chat-drawer {
+    inset: auto;
     bottom: 20px;
     right: 20px;
     width: 420px;
+    max-width: 430px;
+    height: min(650px, 85vh);
+    border: 1px solid var(--border-mid);
+    border-radius: 18px;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.04);
+    backdrop-filter: blur(12px);
   }
 }
 

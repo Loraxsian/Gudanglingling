@@ -1754,7 +1754,7 @@ function parseNaturalBorrowQuery(text) {
 async function registerAndBorrowDirectly(toolName, category, photoUrl, borrowerName, borrowerPhone, borrowDays) {
   const btn = document.getElementById('btn-reg-borrow-direct');
   if (btn) {
-    btn.textContent = 'Mendaftarkan Alat & Memproses...';
+    btn.textContent = 'Memproses...';
     btn.disabled = true;
   }
 
@@ -1818,7 +1818,7 @@ async function registerAndBorrowDirectly(toolName, category, photoUrl, borrowerN
         </div>
         <div style="display:flex;flex-direction:column;gap:6px;">
           <a href="${borrowData.whatsapp_url}" target="_blank" class="btn-act btn-whatsapp-action btn-sm" style="text-decoration:none;display:flex;justify-content:center;align-items:center;gap:6px;">
-            💬 Kirim Bukti Serah Terima ke WhatsApp
+            💬 Kirim Bukti ke WhatsApp
           </a>
           <button class="btn-act btn-subtle-action btn-sm" onclick="closeChatDrawer()">Tutup Asisten</button>
         </div>
@@ -1869,7 +1869,7 @@ async function registerToolOnly(toolName, category, photoUrl) {
 async function executeExpressBorrow(toolId, borrowerName, borrowerPhone, borrowDays) {
   const submitBtn = document.getElementById(`btn-confirm-express-${toolId}`);
   if (submitBtn) {
-    submitBtn.textContent = 'Memproses Triase & Menyimpan...';
+    submitBtn.textContent = 'Memproses...';
     submitBtn.disabled = true;
   }
 
@@ -1908,7 +1908,7 @@ async function executeExpressBorrow(toolId, borrowerName, borrowerPhone, borrowD
         </div>
         <div style="display:flex;flex-direction:column;gap:6px;margin-top:8px;">
           <a href="${data.whatsapp_url}" target="_blank" class="btn-act btn-whatsapp-action btn-sm" style="text-decoration:none;display:flex;justify-content:center;align-items:center;gap:6px;">
-            💬 Kirim Bukti Serah Terima ke WhatsApp
+            💬 Kirim Bukti ke WhatsApp
           </a>
           <button class="btn-act btn-subtle-action btn-sm" onclick="closeChatDrawer()">Tutup Asisten</button>
         </div>
@@ -2042,7 +2042,7 @@ async function processUserChatMessage(rawText, photoBase64 = null) {
 
             <div class="express-actions-col">
               <button class="btn-act btn-primary-action btn-sm" id="btn-confirm-express-${tool.id}" onclick="executeExpressBorrow(${tool.id}, '${esc(name)}', '${esc(phone)}', ${days})">
-                ⚡ Konfirmasi &amp; Pinjam (1-Klik)
+                ⚡ Konfirmasi &amp; Pinjam
               </button>
               <button class="btn-act btn-subtle-action btn-sm" onclick="openBorrowWizardWithData(${tool.id}, '${esc(name)}', '${esc(phone)}', ${days})">
                 🔧 Sesuaikan di Form Wizard
@@ -2099,10 +2099,10 @@ async function processUserChatMessage(rawText, photoBase64 = null) {
 
             <div class="express-actions-col">
               <button class="btn-act btn-primary-action btn-sm" id="btn-reg-borrow-direct" onclick="registerAndBorrowDirectly('${esc(newTool)}', '${esc(cat)}', '${uploadedPhotoUrl}', '${esc(name)}', '${esc(phone)}', ${days})">
-                ⚡ Daftarkan &amp; Pinjamkan (1-Klik)
+                ⚡ Daftar &amp; Pinjamkan
               </button>
               <button class="btn-act btn-subtle-action btn-sm" onclick="registerToolOnly('${esc(newTool)}', '${esc(cat)}', '${uploadedPhotoUrl}')">
-                📦 Simpan ke Rak Saja (Ready)
+                📦 Simpan ke Rak Saja
               </button>
             </div>
           </div>
