@@ -32,6 +32,7 @@ const btnRestartChat    = document.getElementById('btn-restart-chat');
 const modalReturnCheck  = document.getElementById('modal-return-check');
 
 document.addEventListener('DOMContentLoaded', () => {
+  initTheme();
   setupNavigation();
   setupDraggableBubble();
   setupChatDrawer();
@@ -39,6 +40,33 @@ document.addEventListener('DOMContentLoaded', () => {
   loadAllData();
   startChatSession();
 });
+
+// ============================================================
+// 0. THEME CONTROLLER (Light / Dark)
+// ============================================================
+function initTheme() {
+  const saved = localStorage.getItem('gl_theme') || 'dark';
+  applyTheme(saved);
+}
+
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  localStorage.setItem('gl_theme', theme);
+  const iconEl = document.getElementById('theme-toggle-icon');
+  const labelEl = document.getElementById('theme-toggle-label');
+  if (theme === 'light') {
+    if (iconEl) iconEl.innerHTML = '&#9790;'; // Moon
+    if (labelEl) labelEl.textContent = 'Dark';
+  } else {
+    if (iconEl) iconEl.innerHTML = '&#9788;'; // Sun
+    if (labelEl) labelEl.textContent = 'Light';
+  }
+}
+
+function toggleTheme() {
+  const current = document.documentElement.getAttribute('data-theme') || 'dark';
+  applyTheme(current === 'light' ? 'dark' : 'light');
+}
 
 // ============================================================
 // 1. NAVIGATION & DYNAMIC GREETING
@@ -171,12 +199,6 @@ function setupDraggableBubble() {
     const rect = floatingBubble.getBoundingClientRect();
     initialLeft = rect.left;
     initialTop = rect.top;
-
-    // Remove bottom/right positioning to allow free dragging
-    floatingBubble.style.bottom = 'auto';
-    floatingBubble.style.right = 'auto';
-    floatingBubble.style.left = `${initialLeft}px`;
-    floatingBubble.style.top = `${initialTop}px`;
   };
 
   const onPointerMove = (e) => {
@@ -188,21 +210,26 @@ function setupDraggableBubble() {
     const deltaX = clientX - startX;
     const deltaY = clientY - startY;
 
-    if (Math.abs(deltaX) > 6 || Math.abs(deltaY) > 6) {
+    if (Math.abs(deltaX) > 10 || Math.abs(deltaY) > 10) {
       hasMoved = true;
     }
 
-    let newLeft = initialLeft + deltaX;
-    let newTop = initialTop + deltaY;
+    if (hasMoved) {
+      floatingBubble.style.bottom = 'auto';
+      floatingBubble.style.right = 'auto';
 
-    // Screen Boundary Clamping
-    const maxX = window.innerWidth - 64;
-    const maxY = window.innerHeight - 70;
-    newLeft = Math.max(10, Math.min(newLeft, maxX));
-    newTop = Math.max(10, Math.min(newTop, maxY));
+      let newLeft = initialLeft + deltaX;
+      let newTop = initialTop + deltaY;
 
-    floatingBubble.style.left = `${newLeft}px`;
-    floatingBubble.style.top = `${newTop}px`;
+      // Screen Boundary Clamping
+      const maxX = window.innerWidth - 64;
+      const maxY = window.innerHeight - 70;
+      newLeft = Math.max(10, Math.min(newLeft, maxX));
+      newTop = Math.max(10, Math.min(newTop, maxY));
+
+      floatingBubble.style.left = `${newLeft}px`;
+      floatingBubble.style.top = `${newTop}px`;
+    }
   };
 
   const onPointerUp = () => {
@@ -224,38 +251,69 @@ function setupDraggableBubble() {
   floatingBubble.addEventListener('mousedown', onPointerDown);
   window.addEventListener('mousemove', onPointerMove);
   window.addEventListener('mouseup', onPointerUp);
-}
 
-function setupChatDrawer() {
-  btnMinimizeChat.addEventListener('click', () => {
-    chatDrawer.classList.remove('open');
-  });
-
-  btnRestartChat.addEventListener('click', () => {
-    if (confirm('Mulai ulang percakapan chatbot dari awal?')) {
-      chatDrawerBody.innerHTML = '';
-      state.sessionId = null;
-      state.isAuthenticated = false;
-      state.selectedItem = null;
-      state.currentPhotoUrl = '';
-      state.collectedFacts = {};
-      state.lastResult = null;
-      startChatSession();
+  // Close with Escape key
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      closeChatDrawer();
+      closeAssetDetailModal();
+      closeReturnModal();
+      closeAddItemModal();
     }
   });
 }
 
+function openChatDrawer() {
+  chatDrawer.classList.add('open');
+  const overlay = document.getElementById('chat-overlay');
+  if (overlay) overlay.classList.add('open');
+  scrollChatDown();
+}
+
+function closeChatDrawer() {
+  chatDrawer.classList.remove('open');
+  const overlay = document.getElementById('chat-overlay');
+  if (overlay) overlay.classList.remove('open');
+}
+
 function toggleChatDrawer() {
-  chatDrawer.classList.toggle('open');
   if (chatDrawer.classList.contains('open')) {
-    scrollChatDown();
+    closeChatDrawer();
+  } else {
+    openChatDrawer();
+  }
+}
+
+function setupChatDrawer() {
+  const closeBtn = document.getElementById('btn-close-chat') || document.getElementById('btn-minimize-chat');
+  if (closeBtn) {
+    closeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeChatDrawer();
+    });
+  }
+
+  const restartBtn = document.getElementById('btn-restart-chat');
+  if (restartBtn) {
+    restartBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (confirm('Mulai ulang percakapan chatbot dari awal?')) {
+        chatDrawerBody.innerHTML = '';
+        state.sessionId = null;
+        state.isAuthenticated = false;
+        state.selectedItem = null;
+        state.currentPhotoUrl = '';
+        state.collectedFacts = {};
+        state.lastResult = null;
+        startChatSession();
+      }
+    });
   }
 }
 
 function openChatWithItem(itemId) {
   state.selectedItem = state.items.find(i => i.id === itemId);
-  chatDrawer.classList.add('open');
-  scrollChatDown();
+  openChatDrawer();
 
   if (!state.isAuthenticated) {
     // Selesaikan auth dulu
@@ -451,7 +509,7 @@ async function unlockTool(itemId) {
   }
 }
 
-async function showAssetDetail(itemId) {
+function showAssetDetail(itemId) {
   const item = state.items.find(i => i.id === itemId);
   if (!item) return;
 
@@ -462,16 +520,21 @@ async function showAssetDetail(itemId) {
 
   title.textContent = item.name;
   body.innerHTML = `<div style="text-align:center;padding:20px;color:var(--text-muted);">Memuat data...</div>`;
-  modal.classList.add('active');
+  modal.classList.add('open');
 
   // Fetch detail record (includes borrowing history)
-  let records = [];
-  try {
-    const res = await fetch(`/api/items/${itemId}`);
-    const data = await res.json();
-    records = (data.item && data.item.records) || [];
-  } catch(e) {}
+  fetch(`/api/items/${itemId}`)
+    .then(res => res.json())
+    .then(data => {
+      const records = (data.item && data.item.records) || [];
+      renderAssetDetailContent(item, records, body);
+    })
+    .catch(() => {
+      renderAssetDetailContent(item, [], body);
+    });
+}
 
+function renderAssetDetailContent(item, records, body) {
   const dangerColors = {
     'SANGAT TINGGI': { color: 'var(--red-text)', bg: 'var(--red-bg)' },
     'TINGGI':        { color: 'var(--yellow-text)', bg: 'var(--yellow-bg)' },
@@ -501,12 +564,12 @@ async function showAssetDetail(itemId) {
         </div>`;
     }).join('');
   } else {
-    historyHtml = `<div style="text-align:center;padding:14px;font-size:12px;color:var(--text-muted);">Alat ini belum pernah memiliki riwayat peminjaman.</div>`;
+    historyHtml = `<div style="text-align:center;padding:14px;font-size:12px;color:var(--text-muted);">Alat ini belum memiliki riwayat peminjaman.</div>`;
   }
 
   let borrowerBadge = '';
   if (item.active_borrower) {
-    borrowerBadge = `<div style="margin-top:8px;padding:8px 10px;background:rgba(217,119,6,0.12);border:1px solid rgba(245,158,11,0.3);border-radius:8px;font-size:12px;color:var(--yellow-text);">
+    borrowerBadge = `<div style="margin-top:8px;padding:8px 10px;background:var(--yellow-bg);border:1px solid var(--yellow-border);border-radius:8px;font-size:12px;color:var(--yellow-text);">
       Sedang dipinjam oleh <strong>${esc(item.active_borrower)}</strong>
     </div>`;
   }
@@ -540,7 +603,7 @@ async function showAssetDetail(itemId) {
         </div>
       </div>
 
-      <div style="padding:10px;background:rgba(15,23,42,0.5);border-radius:8px;border:1px solid rgba(255,255,255,0.05);font-size:12.5px;color:var(--text-secondary);line-height:1.5;">
+      <div style="padding:10px;background:var(--bg-app);border-radius:8px;border:1px solid var(--border-subtle);font-size:12.5px;color:var(--text-secondary);line-height:1.5;">
         ${esc(item.description || '-')}
       </div>
 
@@ -549,17 +612,130 @@ async function showAssetDetail(itemId) {
       <div class="detail-section-title">Riwayat Triase AI (5 Terakhir)</div>
       <div class="history-mini-list">${historyHtml}</div>
 
-      ${item.status === 'AVAILABLE' ? `
-      <button class="btn-act btn-primary-action" onclick="closeAssetDetailModal(); openChatWithItem(${item.id});">
-        Pinjam Alat Ini Sekarang
-      </button>` : ''}
+      <div style="display:flex;gap:8px;margin-top:6px;">
+        ${item.status === 'AVAILABLE' ? `
+        <button class="btn-act btn-primary-action" onclick="closeAssetDetailModal(); openChatWithItem(${item.id});">
+          Pinjam Alat Ini Sekarang
+        </button>` : ''}
+        <button class="btn-act btn-danger-action btn-sm" style="width:auto;" onclick="handleDeleteItem(${item.id})">Hapus Alat</button>
+      </div>
     </div>
   `;
 }
 
 function closeAssetDetailModal() {
   const modal = document.getElementById('modal-asset-detail');
-  if (modal) modal.classList.remove('active');
+  if (modal) modal.classList.remove('open');
+}
+
+// ============================================================
+// MANUAL ADD & DELETE ITEM
+// ============================================================
+function openAddItemModal() {
+  const modal = document.getElementById('modal-add-item');
+  if (modal) modal.classList.add('open');
+}
+
+function closeAddItemModal() {
+  const modal = document.getElementById('modal-add-item');
+  if (modal) modal.classList.remove('open');
+  const form = document.getElementById('form-add-item');
+  if (form) form.reset();
+}
+
+async function handleCreateItem(e) {
+  e.preventDefault();
+  const name = document.getElementById('add-item-name').value.trim();
+  const category = document.getElementById('add-item-category').value;
+  const power = parseInt(document.getElementById('add-item-power').value || '0', 10);
+  const danger = document.getElementById('add-item-danger').value;
+  const desc = document.getElementById('add-item-desc').value.trim();
+  const fileInput = document.getElementById('add-item-file');
+
+  if (!name) {
+    alert('Nama peralatan wajib diisi.');
+    return;
+  }
+
+  let photoUrl = '/img/bor.svg';
+  if (category === 'Perkebunan') photoUrl = '/img/rumput.svg';
+  else if (category === 'Akses Ketinggian') photoUrl = '/img/tangga.svg';
+  else if (category === 'Peralatan Air & Cuci') photoUrl = '/img/jetcleaner.svg';
+  else if (category === 'Pertukangan Ringan') photoUrl = '/img/obeng.svg';
+  else if (category === 'Perkakas Manual') photoUrl = '/img/toolset.svg';
+
+  if (fileInput && fileInput.files && fileInput.files[0]) {
+    try {
+      const file = fileInput.files[0];
+      const base64 = await readFileAsBase64(file);
+      const uploadRes = await fetch('/api/upload-photo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image_data: base64 })
+      });
+      const uploadData = await uploadRes.json();
+      if (uploadData.photo_url) {
+        photoUrl = uploadData.photo_url;
+      }
+    } catch (err) {
+      console.warn('Gagal upload gambar, menggunakan gambar ikon:', err);
+    }
+  }
+
+  try {
+    const res = await fetch('/api/items', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name,
+        category,
+        power_watts: power,
+        danger_level: danger,
+        description: desc,
+        last_photo_url: photoUrl
+      })
+    });
+    const data = await res.json();
+    if (res.ok && data.success) {
+      closeAddItemModal();
+      await loadItems();
+      renderBeranda();
+      alert('Peralatan berhasil ditambahkan ke inventaris!');
+    } else {
+      alert(data.error || 'Gagal menambahkan peralatan.');
+    }
+  } catch (err) {
+    alert('Gagal menghubungi server.');
+  }
+}
+
+async function handleDeleteItem(itemId) {
+  if (!confirm('Yakin ingin menghapus peralatan ini dari inventaris?')) return;
+  try {
+    const res = await fetch('/api/items/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ item_id: itemId })
+    });
+    if (res.ok) {
+      closeAssetDetailModal();
+      await loadItems();
+      renderBeranda();
+    } else {
+      alert('Gagal menghapus peralatan.');
+    }
+  } catch (err) {
+    alert('Gagal menghubungi server.');
+  }
+}
+
+function readFileAsBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 }
 
 // ============================================================

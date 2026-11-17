@@ -144,6 +144,34 @@ def get_item_by_id(item_id: int) -> Optional[Dict[str, Any]]:
         return item
 
 
+def add_item(data: Dict[str, Any]) -> int:
+    """Menambahkan alat baru ke database inventaris."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+        INSERT INTO items (name, category, power_watts, status, description, danger_level, last_photo_url)
+        VALUES (?, ?, ?, 'AVAILABLE', ?, ?, ?)
+        """, (
+            data.get("name", "").strip(),
+            data.get("category", "Pertukangan Listrik").strip(),
+            int(data.get("power_watts") or 0),
+            data.get("description", "").strip(),
+            data.get("danger_level", "SEDANG").strip(),
+            data.get("last_photo_url", "")
+        ))
+        conn.commit()
+        return cursor.lastrowid
+
+
+def delete_item(item_id: int) -> bool:
+    """Menghapus alat dari database inventaris."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM items WHERE id = ?", (item_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+
+
 def update_item_status(item_id: int, status: str, last_photo_url: Optional[str] = None) -> bool:
     with get_connection() as conn:
         cursor = conn.cursor()

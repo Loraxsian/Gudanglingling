@@ -20,12 +20,20 @@
       </div>
     </div>
 
-    <!-- Desktop Navigation Tabs (>= 768px) -->
-    <nav class="desktop-nav">
-      <button class="desktop-nav-btn active" data-tab="beranda">Beranda</button>
-      <button class="desktop-nav-btn" data-tab="message">Message</button>
-      <button class="desktop-nav-btn" data-tab="faq">FaQ</button>
-    </nav>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <!-- Theme Toggle Button (Dark / Light) -->
+      <button class="theme-toggle-btn" id="btn-theme-toggle" onclick="toggleTheme()" title="Ganti Mode Terang / Gelap">
+        <span id="theme-toggle-icon">&#9788;</span>
+        <span class="theme-toggle-label" id="theme-toggle-label">Light</span>
+      </button>
+
+      <!-- Desktop Navigation Tabs (>= 768px) -->
+      <nav class="desktop-nav">
+        <button class="desktop-nav-btn active" data-tab="beranda">Beranda</button>
+        <button class="desktop-nav-btn" data-tab="message">Message</button>
+        <button class="desktop-nav-btn" data-tab="faq">FaQ</button>
+      </nav>
+    </div>
   </header>
 
   <!-- ==================== MAIN CONTENT AREA ==================== -->
@@ -62,6 +70,12 @@
           <div class="metric-card-label">Terkunci</div>
           <div class="metric-card-value" id="stat-locked" style="color:var(--red-text);">0</div>
         </div>
+      </div>
+
+      <!-- Action Bar: Add Item Button -->
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;">
+        <span style="font-size:12px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.04em;">Daftar Peralatan</span>
+        <button class="btn-act btn-primary-action btn-sm" style="width:auto;padding:6px 14px;" onclick="openAddItemModal()">+ Tambah Alat Baru</button>
       </div>
 
       <!-- 2. Pencarian Cepat & Quick Chips -->
@@ -292,20 +306,83 @@
   <span class="bubble-indicator"></span>
 </div>
 
-<!-- ==================== CHAT DRAWER / POPUP MODAL ==================== -->
+<!-- ==================== CHAT OVERLAY & DRAWER ==================== -->
+<div class="chat-overlay" id="chat-overlay" onclick="closeChatDrawer()"></div>
+
 <div class="chat-drawer" id="chat-drawer">
   <div class="drawer-header">
     <div class="drawer-title">
-      <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#22c55e;"></span>
+      <span class="status-pulse-dot green"></span>
       <span>GudangLingling AI Asisten</span>
     </div>
     <div class="drawer-actions">
-      <button class="btn-drawer" id="btn-minimize-chat" title="Perkecil ke Gelembung">&minus;</button>
+      <button class="btn-drawer btn-drawer-close" id="btn-close-chat" onclick="closeChatDrawer()" title="Tutup Chatbot">&times; Tutup</button>
       <button class="btn-drawer" id="btn-restart-chat" title="Mulai Ulang Percakapan">&#8635;</button>
     </div>
   </div>
   <div class="drawer-body" id="chat-drawer-body">
     <!-- Chat messages injected by JS -->
+  </div>
+</div>
+
+<!-- ==================== MODAL TAMBAH ALAT BARU ==================== -->
+<div class="modal-overlay" id="modal-add-item">
+  <div class="modal-dialog">
+    <div class="modal-dialog-header">
+      <strong style="font-size:14px;">Tambah Alat Baru ke Inventaris</strong>
+      <button class="btn-drawer" onclick="closeAddItemModal()">&times;</button>
+    </div>
+    <div class="modal-dialog-body">
+      <form id="form-add-item" onsubmit="handleCreateItem(event)">
+        <div style="margin-bottom:10px;">
+          <label class="form-label">Nama Peralatan *</label>
+          <input type="text" id="add-item-name" class="form-input" placeholder="Contoh: Bor Listrik Bosch 500W" required>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+          <div>
+            <label class="form-label">Kategori *</label>
+            <select id="add-item-category" class="form-select">
+              <option value="Pertukangan Listrik">Pertukangan Listrik</option>
+              <option value="Perkebunan">Perkebunan</option>
+              <option value="Akses Ketinggian">Akses Ketinggian</option>
+              <option value="Peralatan Air & Cuci">Peralatan Air & Cuci</option>
+              <option value="Pertukangan Ringan">Pertukangan Ringan</option>
+              <option value="Perkakas Manual">Perkakas Manual</option>
+            </select>
+          </div>
+          <div>
+            <label class="form-label">Daya Listrik (Watt)</label>
+            <input type="number" id="add-item-power" class="form-input" placeholder="0 jika manual" min="0" value="0">
+          </div>
+        </div>
+
+        <div style="margin-bottom:10px;">
+          <label class="form-label">Tingkat Bahaya AI</label>
+          <select id="add-item-danger" class="form-select">
+            <option value="RENDAH">RENDAH (Aman untuk pemula)</option>
+            <option value="SEDANG" selected>SEDANG (Perlu kehati-hatian)</option>
+            <option value="TINGGI">TINGGI (Wajib APD & pengalaman)</option>
+            <option value="SANGAT TINGGI">SANGAT TINGGI (Risiko fatal)</option>
+          </select>
+        </div>
+
+        <div style="margin-bottom:10px;">
+          <label class="form-label">Keterangan / Instruksi Keamanan</label>
+          <textarea id="add-item-desc" class="form-input" style="height:65px;padding-top:6px;" placeholder="Instruksi singkat penggunaan alat..."></textarea>
+        </div>
+
+        <div style="margin-bottom:12px;">
+          <label class="form-label">Foto Alat (Kamera / File Gambar)</label>
+          <input type="file" id="add-item-file" accept="image/*" capture="environment" class="form-input" style="padding-top:6px;">
+        </div>
+
+        <div style="display:flex;gap:8px;margin-top:12px;">
+          <button type="submit" class="btn-act btn-primary-action">Simpan ke Inventaris</button>
+          <button type="button" class="btn-act btn-subtle-action" onclick="closeAddItemModal()">Batal</button>
+        </div>
+      </form>
+    </div>
   </div>
 </div>
 

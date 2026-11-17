@@ -16,7 +16,7 @@ if str(BASE_DIR) not in sys.path:
 
 from app import GudangLinglingRequestHandler
 from http.server import ThreadingHTTPServer
-from database.seed import seed_database
+from database.seed import seed_database_for_development
 from config import DEFAULT_FAMILY_PIN
 
 TEST_PORT = 8089
@@ -25,7 +25,7 @@ TEST_PORT = 8089
 class TestAPIEndpoints(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        seed_database()
+        seed_database_for_development()
         cls.server = ThreadingHTTPServer(("127.0.0.1", TEST_PORT), GudangLinglingRequestHandler)
         cls.server_thread = threading.Thread(target=cls.server.serve_forever, daemon=True)
         cls.server_thread.start()

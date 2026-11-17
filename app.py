@@ -28,6 +28,8 @@ from database.db import (
     init_db,
     get_all_items,
     get_item_by_id,
+    add_item,
+    delete_item,
     update_item_status,
     save_borrowing_record,
     complete_return_check,
@@ -436,6 +438,26 @@ class GudangLinglingRequestHandler(BaseHTTPRequestHandler):
                 return
             success = unlock_maintenance_item(int(item_id))
             self._send_json({"success": success, "message": "Alat telah diverifikasi selesai diservis dan kembali tersedia."})
+            return
+
+        # 9. API: Tambah Alat Baru ke Inventaris (Manual Input)
+        if path == "/api/items" or path == "/api/items/create":
+            name = body.get("name", "").strip()
+            if not name:
+                self._send_json({"error": "Nama alat wajib diisi"}, 400)
+                return
+            item_id = add_item(body)
+            self._send_json({"success": True, "item_id": item_id, "message": "Alat berhasil ditambahkan ke inventaris."})
+            return
+
+        # 10. API: Hapus Alat dari Inventaris
+        if path == "/api/items/delete":
+            item_id = body.get("item_id")
+            if not item_id:
+                self._send_json({"error": "item_id diperlukan"}, 400)
+                return
+            success = delete_item(int(item_id))
+            self._send_json({"success": success, "message": "Alat berhasil dihapus dari inventaris."})
             return
 
         self.send_error(404, "Endpoint POST tidak ditemukan")
