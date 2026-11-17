@@ -8,7 +8,7 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32x32.png">
   <link rel="icon" type="image/png" sizes="64x64" href="/img/favicon-64x64.png">
   <link rel="apple-touch-icon" href="/img/logo-emblem.png">
-  <link rel="stylesheet" href="/css/style.css?v=1.0.0">
+  <link rel="stylesheet" href="/css/style.css?v=1.0.1">
 </head>
 <body>
 
@@ -149,16 +149,16 @@
 
       <!-- 1. Ringkasan Status Metrik -->
       <div class="metrics-grid">
-        <div class="metric-card">
-          <div class="metric-card-label">Tersedia</div>
+        <div class="metric-card metric-available">
+          <div class="metric-card-label">✅ Tersedia</div>
           <div class="metric-card-value" id="stat-available" style="color:var(--green-text);">0</div>
         </div>
-        <div class="metric-card">
-          <div class="metric-card-label">Dipinjam</div>
-          <div class="metric-card-value" id="stat-borrowed" style="color:var(--yellow-text);">0</div>
+        <div class="metric-card metric-borrowed">
+          <div class="metric-card-label">⏳ Dipinjam</div>
+          <div class="metric-card-value" id="stat-borrowed" style="color:var(--primary);">0</div>
         </div>
-        <div class="metric-card">
-          <div class="metric-card-label">Terkunci</div>
+        <div class="metric-card metric-locked">
+          <div class="metric-card-label">🔒 Terkunci</div>
           <div class="metric-card-value" id="stat-locked" style="color:var(--red-text);">0</div>
         </div>
       </div>
@@ -941,6 +941,6 @@
 <!-- ==================== TOAST NOTIFICATION CONTAINER ==================== -->
 <div class="app-toast" id="app-toast"></div>
 
-<script src="/js/app.js?v=1.0.0"></script>
+<script src="/js/app.js?v=1.0.1"></script>
 </body>
 </html>
