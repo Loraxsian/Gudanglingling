@@ -2742,6 +2742,12 @@ async function processUserChatMessage(rawText, photoBase64 = null) {
       return;
     }
 
+    // 4B. Intent: Riwayat / Log Aktivitas 7 Hari Terakhir
+    if (query.includes('riwayat') || query.includes('histori') || query.includes('log') || query.includes('7 hari') || query.includes('aktivitas')) {
+      showRecentHistoryInChat(true);
+      return;
+    }
+
     // 5. Intent: Cek Alat Ready / Kueri Alat Spesifik
     const matches = (state.items || []).filter(it => {
       const name = it.name.toLowerCase();
@@ -2809,7 +2815,96 @@ async function processUserChatMessage(rawText, photoBase64 = null) {
   }, 350);
 }
 
+function formatLocalTimestamp(sqlTs) {
+  if (!sqlTs) return '-';
+  const iso = sqlTs.includes('T') ? sqlTs : sqlTs.replace(' ', 'T') + 'Z';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return sqlTs.substring(0, 16);
+  return d.toLocaleString('id-ID', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+}
+
+async function showRecentHistoryInChat(skipUserEcho = false) {
+  if (!skipUserEcho) {
+    appendUserChat('Riwayat 7 Hari Terakhir');
+  }
+  showTypingIndicator();
+
+  try {
+    const res = await fetch('/api/history');
+    const data = await res.json();
+    const allRecords = data.history || [];
+
+    const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+    const recent = allRecords.filter(r => {
+      if (!r.created_at) return true;
+      const iso = r.created_at.includes('T') ? r.created_at : r.created_at.replace(' ', 'T') + 'Z';
+      const ts = new Date(iso).getTime();
+      return isNaN(ts) || ts >= sevenDaysAgo;
+    });
+
+    if (!recent.length) {
+      appendBotChat(`
+        <strong>📋 Riwayat 7 Hari Terakhir</strong><br>
+        <span style="font-size:12px;color:var(--text-secondary);">Belum ada aktivitas peminjaman dalam 7 hari terakhir. Semua perkakas aman di rak.</span>
+      `);
+      return;
+    }
+
+    const itemsHtml = recent.slice(0, 8).map(r => {
+      const isReturned = r.status === 'RETURNED';
+      const isLocked = r.status === 'REJECTED_LOCKOUT';
+      const statusBadge = isReturned
+        ? '<span style="color:var(--green-text);font-weight:700;">✅ Dikembalikan</span>'
+        : isLocked
+          ? '<span style="color:var(--red-text);font-weight:700;">🔴 Ditolak / Lockout</span>'
+          : '<span style="color:var(--yellow-text);font-weight:700;">⏳ Sedang Dipinjam</span>';
+      const sentTime = formatLocalTimestamp(r.created_at);
+      const returnTime = r.returned_at ? `<div style="font-size:10.5px;color:var(--green-text);margin-top:2px;">✅ Kembali: ${formatLocalTimestamp(r.returned_at)}</div>` : '';
+
+      return `
+        <div style="background:var(--bg-app);border:1px solid var(--border-subtle);border-radius:8px;padding:8px 10px;">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px;">
+            <strong style="font-size:12.5px;color:var(--text-primary);">${esc(r.item_name || 'Alat #' + r.item_id)}</strong>
+            <span style="font-size:10.5px;white-space:nowrap;">${statusBadge}</span>
+          </div>
+          <div style="font-size:11.5px;color:var(--text-secondary);margin-top:2px;">
+            Peminjam: <strong>${esc(r.borrower_name)}</strong> &bull; ${r.borrow_days} Hari
+          </div>
+          <div style="font-size:10.5px;color:var(--text-muted);margin-top:3px;">
+            🕒 Dikirim/Dicatat: <strong>${sentTime}</strong>
+          </div>
+          ${returnTime}
+        </div>
+      `;
+    }).join('');
+
+    appendBotChat(`
+      <div style="font-size:12.5px;font-weight:700;color:var(--text-primary);margin-bottom:6px;">
+        📋 Aktivitas 7 Hari Terakhir (${recent.length} Catatan)
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        ${itemsHtml}
+      </div>
+      <div style="font-size:10.5px;color:var(--text-muted);margin-top:8px;line-height:1.4;">
+        Arsip lengkap di atas 7 hari tersimpan permanen di menu <strong>Message</strong>.
+      </div>
+    `);
+  } catch (err) {
+    appendBotChat('Gagal memuat riwayat aktivitas 7 hari terakhir.');
+  }
+}
+
 function handleChatQuickAction(action) {
+  if (action === 'history_7d') {
+    showRecentHistoryInChat(false);
+    return;
+  }
   if (action === 'add_item') {
     closeChatDrawer();
     openAddItemModal();

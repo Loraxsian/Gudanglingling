@@ -8,7 +8,7 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32x32.png">
   <link rel="icon" type="image/png" sizes="64x64" href="/img/favicon-64x64.png">
   <link rel="apple-touch-icon" href="/img/logo-emblem.png">
-  <link rel="stylesheet" href="/css/style.css?v=8.0">
+  <link rel="stylesheet" href="/css/style.css?v=8.1">
 </head>
 <body>
 
@@ -551,8 +551,11 @@
     <button class="suggestion-chip" style="border-color:var(--primary);color:var(--primary);font-weight:700;" onclick="sendSuggestedQuery('Budi pinjam bor listrik 3 hari nomor wa 081212341234')">
       <span>⚡ Contoh Pinjam Kilat</span>
     </button>
+    <button class="suggestion-chip" onclick="handleChatQuickAction('history_7d')">
+      <span>📋 Riwayat 7 Hari Terakhir</span>
+    </button>
     <button class="suggestion-chip" onclick="sendSuggestedQuery('Bagaimana aturan dan durasi pinjam?')">
-      <span>📋 Aturan Pinjam</span>
+      <span>🛡️ Aturan Pinjam</span>
     </button>
   </div>
 
@@ -913,6 +916,6 @@
 <!-- ==================== TOAST NOTIFICATION CONTAINER ==================== -->
 <div class="app-toast" id="app-toast"></div>
 
-<script src="/js/app.js?v=8.0"></script>
+<script src="/js/app.js?v=8.1"></script>
 </body>
 </html>
