@@ -368,8 +368,7 @@ html, body {
   flex-direction: column;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 14px;
-  padding-bottom: 120px; /* Space for bottom nav & floating button */
+  padding: 18px 14px 120px; /* Extra top breathing room & space for bottom nav / floating button */
 }
 
 @media (min-width: 768px) {
@@ -1102,7 +1101,7 @@ html, body {
   border-radius: var(--radius-md);
   padding: 4px;
   gap: 6px;
-  margin-bottom: 4px;
+  margin-bottom: 8px;
 }
 
 .faq-subtab-btn {
@@ -1136,7 +1135,21 @@ html, body {
 .faq-sub-content {
   display: none;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
+}
+
+.formula-block {
+  margin: 8px 0;
+  padding: 8px 12px;
+  background: var(--bg-app);
+  border: 1px solid var(--border-subtle);
+  border-left: 3px solid var(--primary);
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--text-primary);
+  overflow-x: auto;
 }
 
 .faq-sub-content.active {
