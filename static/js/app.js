@@ -866,7 +866,13 @@ function renderMessage() {
   emailLogBody.innerHTML = '';
 
   if (!state.emailLogs.length) {
-    emailLogBody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:14px;">Belum ada arsip email tercatat.</td></tr>`;
+    emailLogBody.innerHTML = `
+      <tr>
+        <td colspan="4" style="text-align:center;color:var(--text-muted);padding:18px 14px;line-height:1.6;">
+          Belum ada riwayat peminjaman yang dicatat.<br>
+          <span style="font-size:11.5px;color:var(--text-secondary);">Arsip bukti digital akan otomatis muncul di sini saat alat mulai dipinjam.</span>
+        </td>
+      </tr>`;
   } else {
     state.emailLogs.forEach(log => {
       const tr = document.createElement('tr');
@@ -881,22 +887,48 @@ function renderMessage() {
   }
 }
 
-// Integrasi Web Contacts Picker API (Buku Kontak HP)
-async function pickDeviceContact() {
-  if ('contacts' in navigator && 'ContactsManager' in window) {
-    try {
+// Global Toast Feedback System
+function showToast(message, type = 'info', duration = 3500) {
+  const toastEl = document.getElementById('app-toast');
+  if (!toastEl) return;
+  toastEl.textContent = message;
+  toastEl.className = `app-toast show ${type}`;
+  clearTimeout(window.__toastTimeout);
+  window.__toastTimeout = setTimeout(() => {
+    toastEl.classList.remove('show');
+  }, duration);
+}
+
+// Integrasi Web Contacts Picker API (Buku Kontak HP) dengan Aksentuasi & Feedback
+async function pickDeviceContact(btn) {
+  const originalText = btn ? btn.textContent : 'Sinkron Kontak HP';
+  if (btn) {
+    btn.textContent = 'Membaca Kontak...';
+    btn.disabled = true;
+    btn.style.opacity = '0.7';
+  }
+
+  try {
+    if ('contacts' in navigator && 'ContactsManager' in window) {
+      showToast('Membuka kontak telepon...', 'info', 2000);
       const contacts = await navigator.contacts.select(['name', 'tel'], { multiple: false });
       if (contacts && contacts.length > 0) {
         const contact = contacts[0];
-        const name = contact.name ? contact.name[0] : '';
+        const name = contact.name ? contact.name[0] : 'Warga';
         const tel = contact.tel ? contact.tel[0] : '';
-        alert(`Kontak terpilih: ${name} (${tel})\nKontak ini siap disematkan saat meminjam alat.`);
+        showToast(`Kontak terpilih: ${name} (${tel})`, 'success', 4000);
       }
-    } catch (e) {
-      console.log('User cancelled contact pick or not supported:', e);
+    } else {
+      showToast('Buku kontak HP siap di Chrome Android. Pada desktop, nomor WA dapat diketik langsung saat pinjam alat.', 'info', 4500);
     }
-  } else {
-    alert('Fitur Sinkron Kontak Buku HP didukung langsung pada browser smartphone (seperti Chrome di Android). Di laptop, Anda dapat memasukkan nomor secara langsung.');
+  } catch (e) {
+    console.log('User cancelled contact pick or not supported:', e);
+  } finally {
+    if (btn) {
+      btn.textContent = originalText;
+      btn.disabled = false;
+      btn.style.opacity = '1';
+    }
   }
 }
 

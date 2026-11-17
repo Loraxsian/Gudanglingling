@@ -161,7 +161,7 @@
       <div class="section-box">
         <div class="section-head">
           <div class="section-head-title">Antrean Pengingat Pengembalian</div>
-          <button class="btn-act btn-subtle-action btn-sm" style="width:auto;" onclick="pickDeviceContact()">Sinkron Kontak HP</button>
+          <button class="btn-act btn-subtle-action btn-sm" id="btn-sync-contact" style="width:auto;" onclick="pickDeviceContact(this)">Sinkron Kontak HP</button>
         </div>
         <div id="reminder-list">
           <!-- Reminder Tiles injected by JS -->
@@ -531,6 +531,9 @@
     </div>
   </div>
 </div>
+
+<!-- ==================== TOAST NOTIFICATION CONTAINER ==================== -->
+<div class="app-toast" id="app-toast"></div>
 
 <script src="/js/app.js"></script>
 </body>
