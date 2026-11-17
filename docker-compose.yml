@@ -9,9 +9,9 @@ services:
     ports:
       - "8085:8085"
     volumes:
-      # Data Persistence (SQLite database & camera uploads tetap awet)
+      # Data Persistence (SQLite database & static assets termasuk upload)
       - ./database:/app/database
-      - ./static/uploads:/app/static/uploads
+      - ./static:/app/static
     environment:
       - HOST=0.0.0.0
       - PORT=8085
