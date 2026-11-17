@@ -8,7 +8,7 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32x32.png">
   <link rel="icon" type="image/png" sizes="64x64" href="/img/favicon-64x64.png">
   <link rel="apple-touch-icon" href="/img/logo-emblem.png">
-  <link rel="stylesheet" href="/css/style.css?v=6.6">
+  <link rel="stylesheet" href="/css/style.css?v=7.0">
 </head>
 <body>
 
@@ -28,13 +28,13 @@
 
     <form id="login-form" class="login-form" onsubmit="handleLandingLogin(event)">
       <div>
-        <label class="form-label" for="login-operator-input">ID Pengurus / No. WhatsApp</label>
-        <input type="text" id="login-operator-input" class="form-input" placeholder="Contoh: Andrian / 0812..." value="Andrian" required>
+        <label class="form-label" for="login-operator-input">Username</label>
+        <input type="text" id="login-operator-input" class="form-input" placeholder="Masukkan username" autocomplete="username" required>
       </div>
 
       <div>
-        <label class="form-label" for="login-pin-input">PIN Keamanan</label>
-        <input type="password" id="login-pin-input" class="form-input" maxlength="10" inputmode="numeric" placeholder="Masukkan PIN akses" required>
+        <label class="form-label" for="login-pin-input">Password</label>
+        <input type="password" id="login-pin-input" class="form-input" placeholder="Masukkan password" autocomplete="current-password" required>
       </div>
 
       <div id="login-error-box" class="login-error-box" style="display:none;"></div>
@@ -42,10 +42,17 @@
       <button type="submit" id="btn-login-submit" class="btn-act btn-primary-action" style="margin-top:4px;height:42px;font-size:13.5px;">
         Masuk ke Gudang
       </button>
+
+      <!-- Note Default Password (otomatis hilang setelah password diganti) -->
+      <div id="login-default-note" class="login-default-note" style="display:none;">
+        <strong>Info Akun Default:</strong><br>
+        Username: <code>lingling</code> &bull; Password: <code>ling123</code><br>
+        <span style="font-size:10.5px;color:var(--text-muted);">Catatan ini otomatis hilang setelah Anda mengganti password.</span>
+      </div>
     </form>
 
     <div class="login-security-note">
-      Dilindungi proteksi anti-brute force (maks. 3 kali percobaan PIN salah).
+      Dilindungi proteksi anti-brute force (maks. 3 kali percobaan salah).
     </div>
     <div class="login-footer-credit">
       Sistem Pakar GudangLingling AI &bull; Liana Sry Astuti (ITEBA)
@@ -814,9 +821,38 @@
   </div>
 </div>
 
+<!-- ==================== MODAL GANTI PASSWORD WAJIB (FIRST LOGIN) ==================== -->
+<div class="modal-overlay" id="modal-change-password" style="z-index:10050;">
+  <div class="modal-dialog" style="max-width:400px;">
+    <div class="modal-dialog-header">
+      <strong style="font-size:14px;">Ganti Password Default (Wajib)</strong>
+    </div>
+    <div class="modal-dialog-body">
+      <div style="background:var(--yellow-bg);border:1px solid var(--yellow-border);color:var(--yellow-text);padding:10px 12px;border-radius:8px;font-size:12px;line-height:1.45;margin-bottom:12px;">
+        Anda masih menggunakan password bawaan (<code>ling123</code>). Demi keamanan gudang, wajib buat password baru sebelum masuk ke halaman utama.
+      </div>
+
+      <form id="form-change-password" onsubmit="handleChangeDefaultPassword(event)" style="display:flex;flex-direction:column;gap:10px;">
+        <div>
+          <label class="form-label" for="new-password-input">Password Baru (min. 6 karakter) *</label>
+          <input type="password" id="new-password-input" class="form-input" minlength="6" placeholder="Masukkan password baru" required>
+        </div>
+        <div>
+          <label class="form-label" for="confirm-password-input">Konfirmasi Password Baru *</label>
+          <input type="password" id="confirm-password-input" class="form-input" minlength="6" placeholder="Ulangi password baru" required>
+        </div>
+        <div id="change-pw-error" class="login-error-box" style="display:none;"></div>
+        <button type="submit" id="btn-change-pw-submit" class="btn-act btn-primary-action" style="margin-top:4px;height:40px;">
+          Simpan Password Baru &amp; Masuk
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+
 <!-- ==================== TOAST NOTIFICATION CONTAINER ==================== -->
 <div class="app-toast" id="app-toast"></div>
 
-<script src="/js/app.js?v=6.6"></script>
+<script src="/js/app.js?v=7.0"></script>
 </body>
 </html>

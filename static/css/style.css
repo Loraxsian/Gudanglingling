@@ -2485,6 +2485,26 @@ html, body {
   text-align: center;
 }
 
+.login-default-note {
+  margin-top: 8px;
+  padding: 10px 12px;
+  background: var(--bg-app);
+  border: 1px dashed var(--border-mid);
+  border-radius: 8px;
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  text-align: center;
+  line-height: 1.5;
+}
+
+.login-default-note code {
+  background: var(--bg-subtle);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-weight: 700;
+  color: var(--primary);
+}
+
 .login-security-note {
   margin-top: 16px;
   font-size: 11px;

@@ -5,9 +5,14 @@ Mengelola Data Inventaris Alat, Foto Bukti Kondisi, Transaksi Peminjaman, Log Em
 
 import sqlite3
 import json
+import hashlib
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 import config
+
+
+def _hash_pw(password: str) -> str:
+    return hashlib.sha256(password.encode("utf-8")).hexdigest()
 
 
 def get_connection() -> sqlite3.Connection:
@@ -88,7 +93,67 @@ def init_db():
         );
         """)
 
+        # 4. Tabel Autentikasi Pengurus (Default: lingling / ling123)
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS app_auth (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            is_default_password INTEGER DEFAULT 1,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        """)
+        cursor.execute("SELECT COUNT(*) FROM app_auth")
+        if cursor.fetchone()[0] == 0:
+            cursor.execute(
+                "INSERT INTO app_auth (username, password_hash, is_default_password) VALUES (?, ?, 1)",
+                ("lingling", _hash_pw("ling123"))
+            )
+
         conn.commit()
+
+
+def get_auth_status() -> Dict[str, Any]:
+    """Mengembalikan status apakah password default masih aktif."""
+    init_db()
+    with get_connection() as conn:
+        row = conn.execute("SELECT username, is_default_password FROM app_auth ORDER BY id ASC LIMIT 1").fetchone()
+        if not row:
+            return {"is_default_password": True}
+        return {"is_default_password": bool(row["is_default_password"])}
+
+
+def verify_user_credentials(username: str, password: str) -> Optional[Dict[str, Any]]:
+    """Memverifikasi username & password pengurus."""
+    init_db()
+    uname = (username or "").strip().lower()
+    pw_hash = _hash_pw(password or "")
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT id, username, password_hash, is_default_password FROM app_auth WHERE LOWER(username) = ?",
+            (uname,)
+        ).fetchone()
+        if not row or row["password_hash"] != pw_hash:
+            return None
+        return {
+            "id": row["id"],
+            "username": row["username"],
+            "is_default_password": bool(row["is_default_password"])
+        }
+
+
+def change_user_password(username: str, new_password: str) -> bool:
+    """Mengganti password default dan menandai is_default_password = 0."""
+    init_db()
+    uname = (username or "lingling").strip().lower()
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE app_auth SET password_hash = ?, is_default_password = 0, updated_at = CURRENT_TIMESTAMP WHERE LOWER(username) = ?",
+            (_hash_pw(new_password), uname)
+        )
+        conn.commit()
+        return cursor.rowcount > 0
 
 
 def get_all_items() -> List[Dict[str, Any]]:

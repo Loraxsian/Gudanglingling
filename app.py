@@ -39,7 +39,10 @@ from database.db import (
     get_borrowing_history,
     get_email_logs,
     log_email_archive,
-    unlock_maintenance_item
+    unlock_maintenance_item,
+    get_auth_status,
+    verify_user_credentials,
+    change_user_password
 )
 from database.seed import seed_database  # Hanya panggil init_db() — tidak insert data
 from engine.state_space import StateSpaceSession, CF_OPTIONS
@@ -164,6 +167,11 @@ class GudangLinglingRequestHandler(BaseHTTPRequestHandler):
             })
             return
 
+        # 1B. API: Cek Status Password Default (Login Page Note)
+        if path == "/api/auth/status":
+            self._send_json(get_auth_status())
+            return
+
         # 2. API: Daftar Peralatan
         if path == "/api/items":
             items = get_all_items()
@@ -266,7 +274,7 @@ class GudangLinglingRequestHandler(BaseHTTPRequestHandler):
         path = parsed.path
         body = self._read_json_body()
 
-        # 1. API: Autentikasi PIN S0 (dengan Proteksi Anti-Brute Force)
+        # 1. API: Autentikasi Username/Password & PIN S0 (dengan Proteksi Anti-Brute Force)
         if path == "/api/auth":
             client_ip = self.client_address[0] if self.client_address else "unknown"
             now = time.time()
@@ -278,22 +286,46 @@ class GudangLinglingRequestHandler(BaseHTTPRequestHandler):
                     "success": False,
                     "locked": True,
                     "retry_after": remaining,
-                    "error": f"Terlalu banyak percobaan PIN salah. Akses dikunci sementara selama {remaining} detik."
+                    "error": f"Terlalu banyak percobaan gagal. Akses dikunci sementara selama {remaining} detik."
                 }, 429)
                 return
 
+            username = (body.get("username") or "").strip()
+            password = body.get("password") or ""
             pin = body.get("pin", "")
-            operator_name = (body.get("operator_name") or "").strip() or "Andrian"
             session_id = str(uuid.uuid4())
             session = StateSpaceSession(session_id)
-            auth_res = session.authenticate(pin)
-            if auth_res["success"]:
-                LOGIN_ATTEMPTS.pop(client_ip, None)
-                ACTIVE_SESSIONS[session_id] = session
-                auth_res["session_id"] = session_id
-                auth_res["operator_name"] = operator_name
-                self._send_json(auth_res, 200)
+
+            if username or password:
+                user = verify_user_credentials(username, password)
+                if user:
+                    LOGIN_ATTEMPTS.pop(client_ip, None)
+                    session.is_authenticated = True
+                    session.current_state = "S1_TOOL_SELECTION"
+                    ACTIVE_SESSIONS[session_id] = session
+                    self._send_json({
+                        "success": True,
+                        "session_id": session_id,
+                        "operator_name": user["username"],
+                        "must_change_password": user["is_default_password"],
+                        "message": "Login berhasil."
+                    }, 200)
+                    return
+                else:
+                    auth_ok = False
             else:
+                auth_res = session.authenticate(pin)
+                auth_ok = auth_res["success"]
+                if auth_ok:
+                    LOGIN_ATTEMPTS.pop(client_ip, None)
+                    ACTIVE_SESSIONS[session_id] = session
+                    auth_res["session_id"] = session_id
+                    auth_res["operator_name"] = (body.get("operator_name") or "").strip() or "Andrian"
+                    auth_res["must_change_password"] = False
+                    self._send_json(auth_res, 200)
+                    return
+
+            if not auth_ok:
                 fails = attempt_info["fails"] + 1
                 if fails >= MAX_LOGIN_ATTEMPTS:
                     LOGIN_ATTEMPTS[client_ip] = {"fails": fails, "locked_until": now + LOCKOUT_SECONDS}
@@ -302,15 +334,39 @@ class GudangLinglingRequestHandler(BaseHTTPRequestHandler):
                         "locked": True,
                         "retry_after": LOCKOUT_SECONDS,
                         "attempts_left": 0,
-                        "error": f"PIN salah 3 kali berturut-turut. Tombol masuk dikunci sementara selama {LOCKOUT_SECONDS // 60} menit."
+                        "error": f"Gagal masuk 3 kali berturut-turut. Tombol masuk dikunci sementara selama {LOCKOUT_SECONDS // 60} menit."
                     }, 429)
                 else:
                     LOGIN_ATTEMPTS[client_ip] = {"fails": fails, "locked_until": 0.0}
                     left = MAX_LOGIN_ATTEMPTS - fails
-                    auth_res["locked"] = False
-                    auth_res["attempts_left"] = left
-                    auth_res["error"] = f"PIN keamanan salah. Sisa percobaan: {left} kali lagi."
-                    self._send_json(auth_res, 401)
+                    self._send_json({
+                        "success": False,
+                        "locked": False,
+                        "attempts_left": left,
+                        "error": f"Username atau password salah. Sisa percobaan: {left} kali lagi."
+                    }, 401)
+            return
+
+        # 1B. API: Ganti Password Wajib (Setelah Login Default)
+        if path == "/api/auth/change-password":
+            username = (body.get("username") or "lingling").strip()
+            new_password = (body.get("new_password") or "").strip()
+            if len(new_password) < 6:
+                self._send_json({"error": "Password baru minimal 6 karakter."}, 400)
+                return
+            if new_password.lower() == "ling123":
+                self._send_json({"error": "Password baru tidak boleh sama dengan password default (ling123)."}, 400)
+                return
+
+            ok = change_user_password(username, new_password)
+            if ok:
+                self._send_json({
+                    "success": True,
+                    "is_default_password": False,
+                    "message": "Password baru berhasil disimpan."
+                }, 200)
+            else:
+                self._send_json({"error": "Akun pengurus tidak ditemukan."}, 404)
             return
 
         # 2. API: Unggah Foto Kamera HP (Base64 -> Local File)

@@ -39,16 +39,29 @@ document.addEventListener('DOMContentLoaded', () => {
   setupChatDrawer();
 
   const savedSession = sessionStorage.getItem('gl_auth_session');
-  const savedOperator = sessionStorage.getItem('gl_operator_name') || 'Andrian';
+  const savedOperator = sessionStorage.getItem('gl_operator_name') || 'lingling';
   if (savedSession) {
     state.sessionId = savedSession;
     state.isAuthenticated = true;
     enterOperationalSession(savedOperator);
   } else {
-    const pinInput = document.getElementById('login-pin-input');
-    if (pinInput) pinInput.focus();
+    checkDefaultPasswordNote();
+    const userInput = document.getElementById('login-operator-input');
+    if (userInput) userInput.focus();
   }
 });
+
+async function checkDefaultPasswordNote() {
+  const noteEl = document.getElementById('login-default-note');
+  if (!noteEl) return;
+  try {
+    const res = await fetch('/api/auth/status');
+    const data = await res.json();
+    noteEl.style.display = data.is_default_password ? 'block' : 'none';
+  } catch (err) {
+    noteEl.style.display = 'none';
+  }
+}
 
 // ============================================================
 // 0. THEME CONTROLLER & LANDING LOGIN GATE
@@ -84,17 +97,18 @@ function toggleTheme() {
 }
 
 let loginLockoutInterval = null;
+let pendingAuthSession = null;
 
 async function handleLandingLogin(e) {
   e.preventDefault();
   const operatorInput = document.getElementById('login-operator-input');
-  const pinInput = document.getElementById('login-pin-input');
+  const pwInput = document.getElementById('login-pin-input');
   const errBox = document.getElementById('login-error-box');
   const submitBtn = document.getElementById('btn-login-submit');
 
-  const operatorName = (operatorInput ? operatorInput.value : '').trim() || 'Andrian';
-  const pin = (pinInput ? pinInput.value : '').trim();
-  if (!pin) return;
+  const username = (operatorInput ? operatorInput.value : '').trim();
+  const password = (pwInput ? pwInput.value : '');
+  if (!username || !password) return;
 
   if (errBox) errBox.style.display = 'none';
   if (submitBtn) {
@@ -106,28 +120,42 @@ async function handleLandingLogin(e) {
     const res = await fetch('/api/auth', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pin, operator_name: operatorName })
+      body: JSON.stringify({ username, password })
     });
     const data = await res.json();
 
     if (res.ok && data.success) {
+      if (pwInput) pwInput.value = '';
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Masuk ke Gudang';
+      }
+
+      if (data.must_change_password) {
+        pendingAuthSession = {
+          sessionId: data.session_id,
+          operatorName: data.operator_name || username
+        };
+        openChangePasswordModal();
+        return;
+      }
+
       state.sessionId = data.session_id;
       state.isAuthenticated = true;
       sessionStorage.setItem('gl_auth_session', data.session_id);
-      sessionStorage.setItem('gl_operator_name', data.operator_name || operatorName);
-      if (pinInput) pinInput.value = '';
-      enterOperationalSession(data.operator_name || operatorName);
-      showToast(`Selamat datang, ${data.operator_name || operatorName}!`, 'success');
+      sessionStorage.setItem('gl_operator_name', data.operator_name || username);
+      enterOperationalSession(data.operator_name || username);
+      showToast(`Selamat datang, ${data.operator_name || username}!`, 'success');
       return;
     }
 
     if (errBox) {
-      errBox.textContent = data.error || 'PIN keamanan salah.';
+      errBox.textContent = data.error || 'Username atau password salah.';
       errBox.style.display = 'block';
     }
-    if (pinInput) {
-      pinInput.value = '';
-      pinInput.focus();
+    if (pwInput) {
+      pwInput.value = '';
+      pwInput.focus();
     }
 
     if (res.status === 429 || data.locked) {
@@ -144,6 +172,94 @@ async function handleLandingLogin(e) {
     if (submitBtn) {
       submitBtn.disabled = false;
       submitBtn.textContent = 'Masuk ke Gudang';
+    }
+  }
+}
+
+function openChangePasswordModal() {
+  const modal = document.getElementById('modal-change-password');
+  const errBox = document.getElementById('change-pw-error');
+  const newPw = document.getElementById('new-password-input');
+  const confPw = document.getElementById('confirm-password-input');
+  if (errBox) errBox.style.display = 'none';
+  if (newPw) newPw.value = '';
+  if (confPw) confPw.value = '';
+  if (modal) modal.classList.add('open');
+  if (newPw) setTimeout(() => newPw.focus(), 100);
+}
+
+async function handleChangeDefaultPassword(e) {
+  e.preventDefault();
+  const newPw = (document.getElementById('new-password-input').value || '').trim();
+  const confPw = (document.getElementById('confirm-password-input').value || '').trim();
+  const errBox = document.getElementById('change-pw-error');
+  const submitBtn = document.getElementById('btn-change-pw-submit');
+
+  const showErr = (msg) => {
+    if (errBox) {
+      errBox.textContent = msg;
+      errBox.style.display = 'block';
+    }
+  };
+
+  if (errBox) errBox.style.display = 'none';
+  if (newPw.length < 6) {
+    showErr('Password baru minimal 6 karakter.');
+    return;
+  }
+  if (newPw.toLowerCase() === 'ling123') {
+    showErr('Password baru tidak boleh sama dengan password default (ling123).');
+    return;
+  }
+  if (newPw !== confPw) {
+    showErr('Konfirmasi password tidak cocok.');
+    return;
+  }
+
+  const username = (pendingAuthSession && pendingAuthSession.operatorName) || 'lingling';
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Menyimpan...';
+  }
+
+  try {
+    const res = await fetch('/api/auth/change-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, new_password: newPw })
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      showErr(data.error || 'Gagal menyimpan password baru.');
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Simpan Password Baru & Masuk';
+      }
+      return;
+    }
+
+    // Hide default password note permanently
+    const noteEl = document.getElementById('login-default-note');
+    if (noteEl) noteEl.style.display = 'none';
+
+    const modal = document.getElementById('modal-change-password');
+    if (modal) modal.classList.remove('open');
+
+    const sessId = (pendingAuthSession && pendingAuthSession.sessionId) || '';
+    state.sessionId = sessId;
+    state.isAuthenticated = true;
+    sessionStorage.setItem('gl_auth_session', sessId);
+    sessionStorage.setItem('gl_operator_name', username);
+    pendingAuthSession = null;
+
+    enterOperationalSession(username);
+    showToast('Password baru disimpan! Selamat datang di GudangLingling.', 'success', 4000);
+  } catch (err) {
+    showErr('Gagal menghubungi server.');
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Simpan Password Baru & Masuk';
     }
   }
 }
@@ -214,8 +330,8 @@ function handleLogout() {
   if (errBox) errBox.style.display = 'none';
   if (pinInput) {
     pinInput.value = '';
-    pinInput.focus();
   }
+  checkDefaultPasswordNote();
   showToast('Sesi dikunci. Silakan login kembali.', 'info');
 }
 
