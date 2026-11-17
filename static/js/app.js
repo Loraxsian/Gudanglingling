@@ -537,7 +537,7 @@ function renderBeranda() {
 
     card.innerHTML = `
       <div class="asset-img-wrap">
-        <img class="asset-img" src="${photoUrl}" alt="${esc(it.name)}" onerror="this.src='/img/bor.svg'">
+        <img class="asset-img" src="${photoUrl}" alt="${esc(it.name)}" onerror="this.onerror=null; this.src='/img/bor.svg';">
         <span class="asset-badge ${it.status}">
           <span class="status-pulse-dot ${badgeDotColor}"></span>
           ${badgeLabel}
@@ -652,7 +652,7 @@ function renderAssetDetailContent(item, records, body) {
   body.innerHTML = `
     <div class="detail-modal-layout">
       <div class="detail-img-banner">
-        <img src="${esc(item.last_photo_url || '/img/bor.svg')}" alt="${esc(item.name)}" onerror="this.src='/img/bor.svg'">
+        <img src="${esc(item.last_photo_url || '/img/bor.svg')}" alt="${esc(item.name)}" onerror="this.onerror=null; this.src='/img/bor.svg';">
         <span class="asset-badge ${item.status}" style="position:absolute;top:10px;right:10px;">
           <span class="status-pulse-dot ${item.status === 'AVAILABLE' ? 'green' : item.status === 'BORROWED' ? 'yellow' : 'red'}"></span>
           ${statusLabel}
@@ -716,6 +716,24 @@ function closeAddItemModal() {
   if (modal) modal.classList.remove('open');
   const form = document.getElementById('form-add-item');
   if (form) form.reset();
+  const wrap = document.getElementById('add-item-preview-wrap');
+  if (wrap) wrap.style.display = 'none';
+}
+
+function previewAddItemPhoto(e) {
+  const file = e.target.files && e.target.files[0];
+  const wrap = document.getElementById('add-item-preview-wrap');
+  const img = document.getElementById('add-item-preview-img');
+  if (!file || !wrap || !img) {
+    if (wrap) wrap.style.display = 'none';
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = function(evt) {
+    img.src = evt.target.result;
+    wrap.style.display = 'block';
+  };
+  reader.readAsDataURL(file);
 }
 
 async function handleCreateItem(e) {

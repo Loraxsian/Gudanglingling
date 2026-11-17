@@ -472,7 +472,10 @@
 
         <div style="margin-bottom:12px;">
           <label class="form-label">Foto Alat (Kamera / File Gambar)</label>
-          <input type="file" id="add-item-file" accept="image/*" capture="environment" class="form-input" style="padding-top:6px;">
+          <input type="file" id="add-item-file" accept="image/*" capture="environment" class="form-input" style="padding-top:6px;" onchange="previewAddItemPhoto(event)">
+          <div id="add-item-preview-wrap" style="display:none;margin-top:8px;border-radius:8px;overflow:hidden;background:var(--bg-subtle);border:1px solid var(--border-subtle);">
+            <img id="add-item-preview-img" src="" alt="Pratinjau Foto" style="width:100%;height:140px;object-fit:cover;display:block;">
+          </div>
         </div>
 
         <div style="display:flex;gap:8px;margin-top:12px;">

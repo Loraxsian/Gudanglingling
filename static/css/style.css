@@ -822,7 +822,7 @@ html, body {
 .asset-img-wrap {
   width: 100%;
   height: 155px;
-  background: radial-gradient(circle at center, #1e293b, #090d16);
+  background: var(--bg-subtle);
   position: relative;
   overflow: hidden;
   display: flex;
@@ -834,11 +834,10 @@ html, body {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transition: transform 0.35s ease;
-}
-
-.asset-card:hover .asset-img {
-  transform: scale(1.03);
+  display: block;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  transform: translateZ(0);
 }
 
 /* Enhanced Status Badge with Glow */
