@@ -10,6 +10,7 @@ Program Studi: Teknik Komputer - ITEBA
 
 import sys
 import os
+import time
 import json
 import uuid
 import base64
@@ -47,6 +48,11 @@ from engine.heuristic_risk import HeuristicRiskEngine
 
 # Sesi percakapan aktif yang disimpan di memori
 ACTIVE_SESSIONS = {}
+
+# Proteksi Anti-Brute Force untuk Login PIN (maks 3 percobaan salah -> kunci 120 detik)
+LOGIN_ATTEMPTS = {}
+MAX_LOGIN_ATTEMPTS = 3
+LOCKOUT_SECONDS = 120
 
 
 class ReusableThreadingServer(ThreadingHTTPServer):
@@ -232,18 +238,51 @@ class GudangLinglingRequestHandler(BaseHTTPRequestHandler):
         path = parsed.path
         body = self._read_json_body()
 
-        # 1. API: Autentikasi PIN S0
+        # 1. API: Autentikasi PIN S0 (dengan Proteksi Anti-Brute Force)
         if path == "/api/auth":
+            client_ip = self.client_address[0] if self.client_address else "unknown"
+            now = time.time()
+            attempt_info = LOGIN_ATTEMPTS.get(client_ip, {"fails": 0, "locked_until": 0.0})
+
+            if attempt_info["locked_until"] > now:
+                remaining = int(attempt_info["locked_until"] - now) + 1
+                self._send_json({
+                    "success": False,
+                    "locked": True,
+                    "retry_after": remaining,
+                    "error": f"Terlalu banyak percobaan PIN salah. Akses dikunci sementara selama {remaining} detik."
+                }, 429)
+                return
+
             pin = body.get("pin", "")
+            operator_name = (body.get("operator_name") or "").strip() or "Andrian"
             session_id = str(uuid.uuid4())
             session = StateSpaceSession(session_id)
             auth_res = session.authenticate(pin)
             if auth_res["success"]:
+                LOGIN_ATTEMPTS.pop(client_ip, None)
                 ACTIVE_SESSIONS[session_id] = session
                 auth_res["session_id"] = session_id
+                auth_res["operator_name"] = operator_name
                 self._send_json(auth_res, 200)
             else:
-                self._send_json(auth_res, 401)
+                fails = attempt_info["fails"] + 1
+                if fails >= MAX_LOGIN_ATTEMPTS:
+                    LOGIN_ATTEMPTS[client_ip] = {"fails": fails, "locked_until": now + LOCKOUT_SECONDS}
+                    self._send_json({
+                        "success": False,
+                        "locked": True,
+                        "retry_after": LOCKOUT_SECONDS,
+                        "attempts_left": 0,
+                        "error": f"PIN salah 3 kali berturut-turut. Tombol masuk dikunci sementara selama {LOCKOUT_SECONDS // 60} menit."
+                    }, 429)
+                else:
+                    LOGIN_ATTEMPTS[client_ip] = {"fails": fails, "locked_until": 0.0}
+                    left = MAX_LOGIN_ATTEMPTS - fails
+                    auth_res["locked"] = False
+                    auth_res["attempts_left"] = left
+                    auth_res["error"] = f"PIN keamanan salah. Sisa percobaan: {left} kali lagi."
+                    self._send_json(auth_res, 401)
             return
 
         # 2. API: Unggah Foto Kamera HP (Base64 -> Local File)

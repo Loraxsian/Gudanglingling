@@ -8,11 +8,52 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32x32.png">
   <link rel="icon" type="image/png" sizes="64x64" href="/img/favicon-64x64.png">
   <link rel="apple-touch-icon" href="/img/logo-emblem.png">
-  <link rel="stylesheet" href="/css/style.css?v=5.5">
+  <link rel="stylesheet" href="/css/style.css?v=6.0">
 </head>
 <body>
 
-<div class="app-shell">
+<!-- ==================== LANDING LOGIN GATE (ANTI-BRUTE FORCE) ==================== -->
+<div class="login-gate" id="login-gate">
+  <button type="button" class="theme-toggle-btn login-theme-btn" onclick="toggleTheme()" title="Ganti Mode Terang / Gelap">
+    <span id="login-theme-icon">&#9788;</span>
+    <span id="login-theme-label">Light</span>
+  </button>
+
+  <div class="login-card">
+    <div class="login-logo-wrap">
+      <img src="/img/logo-emblem.png" alt="GudangLingling Logo" class="login-logo-img">
+    </div>
+    <h1 class="login-title">GudangLingling</h1>
+    <p class="login-subtitle">Sistem Lacak Pinjam Barang Warga</p>
+
+    <form id="login-form" class="login-form" onsubmit="handleLandingLogin(event)">
+      <div>
+        <label class="form-label" for="login-operator-input">ID Pengurus / No. WhatsApp</label>
+        <input type="text" id="login-operator-input" class="form-input" placeholder="Contoh: Andrian / 0812..." value="Andrian" required>
+      </div>
+
+      <div>
+        <label class="form-label" for="login-pin-input">PIN Keamanan</label>
+        <input type="password" id="login-pin-input" class="form-input" maxlength="10" inputmode="numeric" placeholder="Masukkan PIN akses" required>
+      </div>
+
+      <div id="login-error-box" class="login-error-box" style="display:none;"></div>
+
+      <button type="submit" id="btn-login-submit" class="btn-act btn-primary-action" style="margin-top:4px;height:42px;font-size:13.5px;">
+        Masuk ke Gudang
+      </button>
+    </form>
+
+    <div class="login-security-note">
+      Dilindungi proteksi anti-brute force (maks. 3 kali percobaan PIN salah).
+    </div>
+    <div class="login-footer-credit">
+      Sistem Pakar GudangLingling AI &bull; Liana Sry Astuti (ITEBA)
+    </div>
+  </div>
+</div>
+
+<div class="app-shell" id="app-shell" style="display:none;">
 
   <!-- ==================== TOP APP HEADER (TWO-TIER) ==================== -->
   <header class="app-header">
@@ -41,6 +82,11 @@
           <button class="desktop-nav-btn" data-tab="message">Message</button>
           <button class="desktop-nav-btn" data-tab="faq">FaQ</button>
         </nav>
+
+        <!-- Logout / Lock Session Button -->
+        <button class="theme-toggle-btn" id="btn-logout" onclick="handleLogout()" title="Kunci / Keluar Sesi">
+          <span>Keluar</span>
+        </button>
       </div>
     </div>
 
@@ -429,7 +475,7 @@
 </div><!-- .app-shell -->
 
 <!-- ==================== DRAGGABLE FLOATING CHATBOT BUBBLE ==================== -->
-<div class="floating-bubble" id="floating-bubble" title="Buka Asisten Chatbot AI">
+<div class="floating-bubble" id="floating-bubble" style="display:none;" title="Buka Asisten Chatbot AI">
   <img src="/img/logo-emblem.png" alt="GudangLingling Mascot" class="bubble-logo-img">
   <span class="bubble-indicator"></span>
 </div>
@@ -772,6 +818,6 @@
 <!-- ==================== TOAST NOTIFICATION CONTAINER ==================== -->
 <div class="app-toast" id="app-toast"></div>
 
-<script src="/js/app.js?v=5.5"></script>
+<script src="/js/app.js?v=6.0"></script>
 </body>
 </html>

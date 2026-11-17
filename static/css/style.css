@@ -2395,6 +2395,112 @@ html, body {
   border-left: 4px solid var(--yellow);
 }
 
+/* ============================================================
+   LANDING AUTHENTICATION SCREEN (LOGIN GATE)
+   ============================================================ */
+.login-gate {
+  position: fixed;
+  inset: 0;
+  background: var(--bg-app);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 9000;
+  overflow-y: auto;
+}
+
+.login-theme-btn {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 390px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-mid);
+  border-radius: 18px;
+  padding: 28px 24px 22px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.login-logo-wrap {
+  width: 68px;
+  height: 68px;
+  border-radius: 16px;
+  background: var(--bg-app);
+  border: 1px solid var(--border-subtle);
+  padding: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 14px;
+  box-shadow: 0 6px 18px rgba(37, 99, 235, 0.15);
+}
+
+.login-logo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.login-title {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text-primary);
+  letter-spacing: -0.3px;
+  margin: 0;
+}
+
+.login-subtitle {
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  margin: 4px 0 20px;
+}
+
+.login-form {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  text-align: left;
+}
+
+.login-error-box {
+  background: var(--red-bg);
+  border: 1px solid var(--red-border);
+  color: var(--red-text);
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.45;
+  text-align: center;
+}
+
+.login-security-note {
+  margin-top: 16px;
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.login-footer-credit {
+  margin-top: 8px;
+  padding-top: 10px;
+  width: 100%;
+  border-top: 1px solid var(--border-subtle);
+  font-size: 10.5px;
+  color: var(--text-muted);
+}
+
 /* Animation */
 @keyframes slideUp {
   from { transform: translateY(20px); opacity: 0; }

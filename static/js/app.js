@@ -7,6 +7,7 @@
 const state = {
   sessionId: null,
   isAuthenticated: false,
+  operatorName: 'Andrian',
   items: [],
   reminders: [],
   emailLogs: [],
@@ -36,14 +37,21 @@ document.addEventListener('DOMContentLoaded', () => {
   setupNavigation();
   setupDraggableBubble();
   setupChatDrawer();
-  updateDynamicGreeting();
-  updateHeaderStatus();
-  loadAllData();
-  startChatSession();
+
+  const savedSession = sessionStorage.getItem('gl_auth_session');
+  const savedOperator = sessionStorage.getItem('gl_operator_name') || 'Andrian';
+  if (savedSession) {
+    state.sessionId = savedSession;
+    state.isAuthenticated = true;
+    enterOperationalSession(savedOperator);
+  } else {
+    const pinInput = document.getElementById('login-pin-input');
+    if (pinInput) pinInput.focus();
+  }
 });
 
 // ============================================================
-// 0. THEME CONTROLLER (Light / Dark)
+// 0. THEME CONTROLLER & LANDING LOGIN GATE
 // ============================================================
 function initTheme() {
   const saved = localStorage.getItem('gl_theme') || 'dark';
@@ -55,12 +63,18 @@ function applyTheme(theme) {
   localStorage.setItem('gl_theme', theme);
   const iconEl = document.getElementById('theme-toggle-icon');
   const labelEl = document.getElementById('theme-toggle-label');
+  const loginIconEl = document.getElementById('login-theme-icon');
+  const loginLabelEl = document.getElementById('login-theme-label');
   if (theme === 'light') {
-    if (iconEl) iconEl.innerHTML = '&#9790;'; // Moon
+    if (iconEl) iconEl.innerHTML = '&#9790;';
     if (labelEl) labelEl.textContent = 'Dark';
+    if (loginIconEl) loginIconEl.innerHTML = '&#9790;';
+    if (loginLabelEl) loginLabelEl.textContent = 'Dark';
   } else {
-    if (iconEl) iconEl.innerHTML = '&#9788;'; // Sun
+    if (iconEl) iconEl.innerHTML = '&#9788;';
     if (labelEl) labelEl.textContent = 'Light';
+    if (loginIconEl) loginIconEl.innerHTML = '&#9788;';
+    if (loginLabelEl) loginLabelEl.textContent = 'Light';
   }
 }
 
@@ -69,30 +83,163 @@ function toggleTheme() {
   applyTheme(current === 'light' ? 'dark' : 'light');
 }
 
+let loginLockoutInterval = null;
+
+async function handleLandingLogin(e) {
+  e.preventDefault();
+  const operatorInput = document.getElementById('login-operator-input');
+  const pinInput = document.getElementById('login-pin-input');
+  const errBox = document.getElementById('login-error-box');
+  const submitBtn = document.getElementById('btn-login-submit');
+
+  const operatorName = (operatorInput ? operatorInput.value : '').trim() || 'Andrian';
+  const pin = (pinInput ? pinInput.value : '').trim();
+  if (!pin) return;
+
+  if (errBox) errBox.style.display = 'none';
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Memverifikasi...';
+  }
+
+  try {
+    const res = await fetch('/api/auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pin, operator_name: operatorName })
+    });
+    const data = await res.json();
+
+    if (res.ok && data.success) {
+      state.sessionId = data.session_id;
+      state.isAuthenticated = true;
+      sessionStorage.setItem('gl_auth_session', data.session_id);
+      sessionStorage.setItem('gl_operator_name', data.operator_name || operatorName);
+      if (pinInput) pinInput.value = '';
+      enterOperationalSession(data.operator_name || operatorName);
+      showToast(`Selamat datang, ${data.operator_name || operatorName}!`, 'success');
+      return;
+    }
+
+    if (errBox) {
+      errBox.textContent = data.error || 'PIN keamanan salah.';
+      errBox.style.display = 'block';
+    }
+    if (pinInput) {
+      pinInput.value = '';
+      pinInput.focus();
+    }
+
+    if (res.status === 429 || data.locked) {
+      startLoginLockoutTimer(data.retry_after || 120);
+    } else if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Masuk ke Gudang';
+    }
+  } catch (err) {
+    if (errBox) {
+      errBox.textContent = 'Gagal menghubungi server. Periksa koneksi Anda.';
+      errBox.style.display = 'block';
+    }
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Masuk ke Gudang';
+    }
+  }
+}
+
+function startLoginLockoutTimer(seconds) {
+  clearInterval(loginLockoutInterval);
+  const submitBtn = document.getElementById('btn-login-submit');
+  const errBox = document.getElementById('login-error-box');
+  let remaining = Math.max(1, parseInt(seconds, 10));
+
+  const tick = () => {
+    if (remaining <= 0) {
+      clearInterval(loginLockoutInterval);
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Masuk ke Gudang';
+      }
+      if (errBox) {
+        errBox.textContent = 'Masa kunci selesai. Silakan masukkan PIN dengan benar.';
+      }
+      return;
+    }
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = `Terkunci (${remaining} detik)`;
+    }
+    remaining -= 1;
+  };
+
+  tick();
+  loginLockoutInterval = setInterval(tick, 1000);
+}
+
+function enterOperationalSession(operatorName) {
+  state.operatorName = operatorName || 'Andrian';
+  const gate = document.getElementById('login-gate');
+  const shell = document.getElementById('app-shell');
+  const bubble = document.getElementById('floating-bubble');
+
+  if (gate) gate.style.display = 'none';
+  if (shell) shell.style.display = 'flex';
+  if (bubble) bubble.style.display = 'flex';
+
+  updateDynamicGreeting();
+  updateHeaderStatus();
+  loadAllData();
+  if (chatDrawerBody && chatDrawerBody.children.length === 0) {
+    startChatSession();
+  }
+}
+
+function handleLogout() {
+  sessionStorage.removeItem('gl_auth_session');
+  sessionStorage.removeItem('gl_operator_name');
+  state.sessionId = null;
+  state.isAuthenticated = false;
+  closeChatDrawer();
+
+  const gate = document.getElementById('login-gate');
+  const shell = document.getElementById('app-shell');
+  const bubble = document.getElementById('floating-bubble');
+  const errBox = document.getElementById('login-error-box');
+  const pinInput = document.getElementById('login-pin-input');
+
+  if (shell) shell.style.display = 'none';
+  if (bubble) bubble.style.display = 'none';
+  if (gate) gate.style.display = 'flex';
+  if (errBox) errBox.style.display = 'none';
+  if (pinInput) {
+    pinInput.value = '';
+    pinInput.focus();
+  }
+  showToast('Sesi dikunci. Silakan login kembali.', 'info');
+}
+
 // ============================================================
 // 1. NAVIGATION & DYNAMIC GREETING
 // ============================================================
 function updateDynamicGreeting() {
   const hour = new Date().getHours();
+  const opName = state.operatorName || 'Andrian';
   let timeTag = 'Gudang Utama RT';
-  let title = 'Halo Andrian • Gudang Utama RT';
+  const title = `Halo ${opName} • Gudang Utama RT`;
   let sub = 'Sistem inventaris & peminjaman perkakas warga mandiri. Cek fisik alat sebelum serah terima.';
 
   if (hour >= 11 && hour < 15) {
     timeTag = 'Shift Siang • Operasional';
-    title = 'Halo Andrian • Gudang Utama RT';
     sub = 'Shift siang aktif. Pantau perkakas yang sedang digunakan di lapangan dan cek kelayakan fisik.';
   } else if (hour >= 15 && hour < 18) {
     timeTag = 'Shift Sore • Pengembalian';
-    title = 'Halo Andrian • Gudang Utama RT';
     sub = 'Waktu pengecekan pengembalian alat warga. Pastikan kabel rapi dan perkakas kembali bersih.';
   } else if (hour >= 18 || hour < 4) {
     timeTag = 'Standby Malam • Inventaris Terkunci';
-    title = 'Halo Andrian • Gudang Utama RT';
     sub = 'Peralatan tersimpan rapi di rak inventaris. Log peminjaman dan rekam triase risiko aktif.';
   } else {
     timeTag = 'Shift Pagi • Kesiapan Alat';
-    title = 'Halo Andrian • Gudang Utama RT';
     sub = 'Gudang siap melayani peminjaman alat pertukangan dan kebersihan lingkungan warga.';
   }
 
