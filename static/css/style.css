@@ -348,7 +348,7 @@ html, body {
   overflow-y: auto;
   overflow-x: hidden;
   padding: 14px;
-  padding-bottom: 90px; /* Space for bottom nav & floating button */
+  padding-bottom: 120px; /* Space for bottom nav & floating button */
 }
 
 @media (min-width: 768px) {
@@ -989,7 +989,9 @@ html, body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 10px;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
 }
 
 .section-head-title {
@@ -1003,51 +1005,63 @@ html, body {
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
   padding: 12px;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 
 .reminder-tile-top {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .reminder-time-tag {
-  font-size: 10px;
+  font-size: 10.5px;
   font-weight: 700;
-  padding: 2px 7px;
-  border-radius: 4px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
-.reminder-time-tag.due { background: var(--yellow-bg); color: var(--yellow-text); }
-.reminder-time-tag.overdue { background: var(--red-bg); color: var(--red-text); }
+.reminder-time-tag.due { background: var(--yellow-bg); color: var(--yellow-text); border: 1px solid var(--yellow-border); }
+.reminder-time-tag.overdue { background: var(--red-bg); color: var(--red-text); border: 1px solid var(--red-border); }
 
 /* Email logs table */
 .email-table-wrap {
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   width: 100%;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--bg-app);
 }
 
 .email-table {
   width: 100%;
+  min-width: 460px;
   border-collapse: collapse;
   font-size: 11.5px;
 }
 
 .email-table th {
   text-align: left;
-  padding: 7px 8px;
+  padding: 9px 10px;
   color: var(--text-muted);
+  background: var(--bg-subtle);
   border-bottom: 1px solid var(--border-subtle);
+  white-space: nowrap;
 }
 
 .email-table td {
-  padding: 7px 8px;
+  padding: 9px 10px;
   border-bottom: 1px solid var(--border-subtle);
   color: var(--text-secondary);
+  vertical-align: top;
 }
 
 /* ============================================================
@@ -1229,11 +1243,11 @@ html, body {
 .chat-drawer {
   display: none;
   position: fixed;
-  bottom: 20px;
-  right: 20px;
-  width: calc(100% - 40px);
+  bottom: 14px;
+  right: 12px;
+  width: calc(100% - 24px);
   max-width: 430px;
-  height: min(650px, 86vh);
+  height: min(650px, 85vh);
   background: var(--bg-surface);
   border: 1px solid var(--border-mid);
   border-radius: 18px;
@@ -1243,6 +1257,14 @@ html, body {
   overflow: hidden;
   animation: slideUp 0.28s cubic-bezier(0.16, 1, 0.3, 1);
   backdrop-filter: blur(12px);
+}
+
+@media (min-width: 600px) {
+  .chat-drawer {
+    bottom: 20px;
+    right: 20px;
+    width: 420px;
+  }
 }
 
 .chat-drawer.open {
@@ -1386,7 +1408,7 @@ html, body {
 .chat-row.user { justify-content: flex-end; }
 
 .bubble {
-  max-width: 88%;
+  max-width: 92%;
   padding: 10px 14px;
   border-radius: 14px;
   font-size: 12.8px;
@@ -1401,6 +1423,24 @@ html, body {
   color: var(--text-primary);
   border-bottom-left-radius: 3px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.bubble-bot:has(.chat-hero-card),
+.bubble-bot:has(.chat-express-card),
+.bubble-bot:has(.chat-new-tool-card) {
+  width: 100%;
+  max-width: 100%;
+  padding: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+.bubble-bot:has(.chat-hero-card) .bubble-meta,
+.bubble-bot:has(.chat-express-card) .bubble-meta,
+.bubble-bot:has(.chat-new-tool-card) .bubble-meta {
+  padding-right: 4px;
+  margin-top: 4px;
 }
 
 .bubble-user {
@@ -2007,14 +2047,15 @@ html, body {
 }
 
 .btn-subtle-action {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--bg-subtle);
   color: var(--text-primary);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--border-mid);
 }
 
 .btn-subtle-action:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.2);
+  background: var(--border-subtle);
+  border-color: var(--primary);
+  color: var(--primary);
   transform: translateY(-1px);
 }
 
@@ -2073,7 +2114,8 @@ html, body {
   height: 180px;
   border-radius: var(--radius-md);
   overflow: hidden;
-  background: radial-gradient(circle at center, #1e293b, #090d16);
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-subtle);
   position: relative;
   display: flex;
   align-items: center;
@@ -2094,7 +2136,7 @@ html, body {
 
 .tech-spec-item {
   background: var(--bg-app);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-subtle);
   border-radius: 8px;
   padding: 8px 10px;
 }
@@ -2133,7 +2175,7 @@ html, body {
   justify-content: space-between;
   align-items: center;
   background: var(--bg-app);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-subtle);
   border-radius: 6px;
   padding: 8px 10px;
   font-size: 12px;

@@ -1144,17 +1144,17 @@ function renderMessage() {
   reminderContainer.innerHTML = '';
 
   if (!state.reminders.length) {
-    reminderContainer.innerHTML = `<div style="text-align:center;padding:20px;color:var(--text-muted);font-size:12px;">Tidak ada antrean pengembalian aktif saat ini. Semua alat aman di gudang.</div>`;
+    reminderContainer.innerHTML = `<div style="text-align:center;padding:20px;color:var(--text-muted);font-size:12px;">✅ Tidak ada antrean pengembalian aktif saat ini. Semua alat aman di gudang.</div>`;
   } else {
     state.reminders.forEach(r => {
       const daysLeft = r.borrow_days - (r.days_elapsed || 0);
       let statusTag = '';
       if (daysLeft < 0) {
-        statusTag = `<span class="reminder-time-tag overdue">Terlambat ${Math.abs(daysLeft)} Hari</span>`;
+        statusTag = `<span class="reminder-time-tag overdue">⚠️ Terlambat ${Math.abs(daysLeft)} Hari</span>`;
       } else if (daysLeft === 0) {
-        statusTag = `<span class="reminder-time-tag due">Jatuh Tempo Hari Ini</span>`;
+        statusTag = `<span class="reminder-time-tag due">⏰ Jatuh Tempo Hari Ini</span>`;
       } else {
-        statusTag = `<span class="reminder-time-tag due">Sisa ${daysLeft} Hari</span>`;
+        statusTag = `<span class="reminder-time-tag due">⏳ Sisa ${daysLeft} Hari</span>`;
       }
 
       const waMsg = encodeURIComponent(
@@ -1167,17 +1167,17 @@ function renderMessage() {
       tile.className = 'reminder-tile';
       tile.innerHTML = `
         <div class="reminder-tile-top">
-          <div>
-            <strong style="font-size:13px;color:var(--text-primary);">${esc(r.item_name)}</strong>
-            <div style="font-size:11.5px;color:var(--text-secondary);margin-top:2px;">
-              Peminjam: <strong>${esc(r.borrower_name)}</strong> (${r.borrower_phone || 'Tanpa No. WA'})
+          <div style="flex:1;min-width:160px;">
+            <strong style="font-size:13px;color:var(--text-primary);">🔧 ${esc(r.item_name)}</strong>
+            <div style="font-size:11.5px;color:var(--text-secondary);margin-top:3px;">
+              👤 Peminjam: <strong>${esc(r.borrower_name)}</strong> (${r.borrower_phone || 'Tanpa No. WA'})
             </div>
           </div>
           ${statusTag}
         </div>
-        <div style="display:flex;gap:6px;margin-top:6px;">
-          <a href="${waUrl}" target="_blank" class="btn-act btn-whatsapp-action btn-sm">Kirim Pengingat WA</a>
-          <button class="btn-act btn-subtle-action btn-sm" onclick="openReturnModalByRecordId(${r.id})">Cek Pengembalian</button>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px;">
+          <a href="${waUrl}" target="_blank" class="btn-act btn-whatsapp-action btn-sm" style="flex:1;min-width:135px;">💬 Kirim Pengingat WA</a>
+          <button class="btn-act btn-subtle-action btn-sm" style="flex:1;min-width:135px;" onclick="openReturnModalByRecordId(${r.id})">📸 Cek Pengembalian</button>
         </div>
       `;
       reminderContainer.appendChild(tile);
@@ -1457,39 +1457,39 @@ async function startChatSession() {
     <div class="chat-hero-card">
       <div class="chat-hero-header">
         <span class="status-pulse-dot green" style="position:static;"></span>
-        <span>${timeGreeting}! Saya Asisten GudangLingling.</span>
+        <span>👋 ${timeGreeting}! Saya Asisten GudangLingling.</span>
       </div>
       <div class="chat-hero-desc">
-        Sistem pakar inventaris perkakas warga. Saya siap membantu pengecekan alat ready, triase keselamatan fisik, hingga rekomendasi alat.
+        Sistem pakar inventaris perkakas warga. Saya siap membantu pengecekan alat ready, triase keselamatan fisik, hingga pinjam kilat!
       </div>
       <div class="chat-status-strip">
         <div class="chat-status-pill">
           <div class="val" style="color:var(--green-text);">${availableCount}</div>
-          <div class="lbl">Ready</div>
+          <div class="lbl">✅ Ready</div>
         </div>
         <div class="chat-status-pill">
           <div class="val" style="color:var(--yellow-text);">${borrowedCount}</div>
-          <div class="lbl">Dipinjam</div>
+          <div class="lbl">⏳ Dipinjam</div>
         </div>
         <div class="chat-status-pill">
           <div class="val" style="color:var(--red-text);">${lockedCount}</div>
-          <div class="lbl">Terkunci</div>
+          <div class="lbl">🔒 Terkunci</div>
         </div>
       </div>
       <div style="font-size:11.5px;color:var(--text-secondary);line-height:1.4;">
-        Ketik pertanyaanmu di kolom bawah, atau pilih salah satu menu cepat:
+        Ketik pesan atau lampirkan foto alat di bawah, atau pilih menu cepat:
       </div>
-      <div style="display:flex;flex-direction:column;gap:5px;margin-top:8px;">
-        <button class="btn-act btn-primary-action btn-sm" style="width:100%;text-align:left;display:flex;justify-content:space-between;align-items:center;" onclick="handleChatQuickAction('borrow_tool')">
-          <span>Form Pinjam Cepat (Smart Wizard)</span>
+      <div style="display:flex;flex-direction:column;gap:6px;margin-top:8px;">
+        <button class="btn-act btn-primary-action btn-sm" style="width:100%;justify-content:space-between;" onclick="handleChatQuickAction('borrow_tool')">
+          <span>⚡ Form Pinjam Cepat (Smart Wizard)</span>
           <span>&rarr;</span>
         </button>
-        <button class="btn-act btn-subtle-action btn-sm" style="width:100%;text-align:left;display:flex;justify-content:space-between;align-items:center;" onclick="handleChatQuickAction('check_ready')">
-          <span>Lihat Alat yang Sedang Ready</span>
+        <button class="btn-act btn-subtle-action btn-sm" style="width:100%;justify-content:space-between;" onclick="handleChatQuickAction('check_ready')">
+          <span>📦 Lihat Alat yang Sedang Ready</span>
           <span>&rsaquo;</span>
         </button>
-        <button class="btn-act btn-subtle-action btn-sm" style="width:100%;text-align:left;display:flex;justify-content:space-between;align-items:center;" onclick="handleChatQuickAction('add_item')">
-          <span>+ Tambah Alat Baru ke Rak</span>
+        <button class="btn-act btn-subtle-action btn-sm" style="width:100%;justify-content:space-between;" onclick="handleChatQuickAction('add_item')">
+          <span>➕ Tambah Alat Baru ke Rak</span>
           <span>&rsaquo;</span>
         </button>
       </div>
@@ -1797,7 +1797,7 @@ async function registerAndBorrowDirectly(toolName, category, photoUrl, borrowerN
       <div style="background:var(--bg-surface);border:1.5px solid var(--green);border-radius:12px;padding:12px;margin-top:6px;">
         <div style="display:flex;align-items:center;gap:6px;font-weight:800;color:var(--green-text);font-size:12.5px;">
           <span class="status-pulse-dot green" style="position:static;"></span>
-          <span>ALAT BERHASIL DIDAFTARKAN &amp; DIPINJAMKAN!</span>
+          <span>✅ ALAT BERHASIL DIDAFTARKAN &amp; DIPINJAMKAN!</span>
         </div>
         <div style="display:flex;align-items:center;gap:10px;margin:8px 0;background:var(--bg-app);padding:8px 10px;border-radius:8px;border:1px solid var(--border-subtle);">
           <img src="${finalPhoto}" style="width:44px;height:44px;border-radius:6px;object-fit:cover;" onerror="this.onerror=null; this.src='/img/bor.svg';">
@@ -1811,7 +1811,7 @@ async function registerAndBorrowDirectly(toolName, category, photoUrl, borrowerN
         </div>
         <div style="display:flex;flex-direction:column;gap:6px;">
           <a href="${borrowData.whatsapp_url}" target="_blank" class="btn-act btn-whatsapp-action btn-sm" style="text-decoration:none;display:flex;justify-content:center;align-items:center;gap:6px;">
-            Kirim Bukti Serah Terima ke WhatsApp
+            💬 Kirim Bukti Serah Terima ke WhatsApp
           </a>
           <button class="btn-act btn-subtle-action btn-sm" onclick="closeChatDrawer()">Tutup Asisten</button>
         </div>
@@ -1894,14 +1894,14 @@ async function executeExpressBorrow(toolId, borrowerName, borrowerPhone, borrowD
       <div style="background:var(--bg-surface);border:1.5px solid var(--green);border-radius:12px;padding:12px;margin-top:6px;">
         <div style="display:flex;align-items:center;gap:6px;font-weight:800;color:var(--green-text);font-size:12.5px;">
           <span class="status-pulse-dot green" style="position:static;"></span>
-          <span>PEMINJAMAN KILAT BERHASIL DICATAT!</span>
+          <span>✅ PEMINJAMAN KILAT BERHASIL DICATAT!</span>
         </div>
         <div style="font-size:12.5px;color:var(--text-primary);margin:6px 0;line-height:1.4;">
           <strong>${esc(data.item.name)}</strong> resmi tercatat dipinjam oleh <strong>${esc(borrowerName)}</strong> selama <strong>${borrowDays} hari</strong>.
         </div>
         <div style="display:flex;flex-direction:column;gap:6px;margin-top:8px;">
           <a href="${data.whatsapp_url}" target="_blank" class="btn-act btn-whatsapp-action btn-sm" style="text-decoration:none;display:flex;justify-content:center;align-items:center;gap:6px;">
-            Kirim Bukti Serah Terima ke WhatsApp
+            💬 Kirim Bukti Serah Terima ke WhatsApp
           </a>
           <button class="btn-act btn-subtle-action btn-sm" onclick="closeChatDrawer()">Tutup Asisten</button>
         </div>
@@ -2001,7 +2001,7 @@ async function processUserChatMessage(rawText, photoBase64 = null) {
         appendBotChat(`
           <div class="chat-express-card">
             <div class="express-header">
-              <span class="express-badge">Peminjaman Kilat Terdeteksi</span>
+              <span class="express-badge">⚡ Peminjaman Kilat Terdeteksi</span>
               <span class="status-pulse-dot green" style="position:static;"></span>
             </div>
 
@@ -2035,10 +2035,10 @@ async function processUserChatMessage(rawText, photoBase64 = null) {
 
             <div class="express-actions-col">
               <button class="btn-act btn-primary-action btn-sm" id="btn-confirm-express-${tool.id}" onclick="executeExpressBorrow(${tool.id}, '${esc(name)}', '${esc(phone)}', ${days})">
-                ⚡ Konfirmasi &amp; Pinjam Sekarang (1-Klik)
+                ⚡ Konfirmasi &amp; Pinjam (1-Klik)
               </button>
               <button class="btn-act btn-subtle-action btn-sm" onclick="openBorrowWizardWithData(${tool.id}, '${esc(name)}', '${esc(phone)}', ${days})">
-                Buka di Form Wizard (Foto &amp; Cek Fisik)
+                🔧 Sesuaikan di Form Wizard
               </button>
             </div>
           </div>
@@ -2058,7 +2058,7 @@ async function processUserChatMessage(rawText, photoBase64 = null) {
         appendBotChat(`
           <div class="chat-new-tool-card">
             <div class="express-header">
-              <span class="new-tool-tag">+ Alat Baru Terdeteksi</span>
+              <span class="new-tool-tag">🆕 Alat Baru Terdeteksi</span>
               <span class="status-pulse-dot yellow" style="position:static;"></span>
             </div>
 
@@ -2092,10 +2092,10 @@ async function processUserChatMessage(rawText, photoBase64 = null) {
 
             <div class="express-actions-col">
               <button class="btn-act btn-primary-action btn-sm" id="btn-reg-borrow-direct" onclick="registerAndBorrowDirectly('${esc(newTool)}', '${esc(cat)}', '${uploadedPhotoUrl}', '${esc(name)}', '${esc(phone)}', ${days})">
-                ⚡ Daftarkan &amp; Pinjamkan ke ${esc(name)} Langsung (1-Klik)
+                ⚡ Daftarkan &amp; Pinjamkan (1-Klik)
               </button>
               <button class="btn-act btn-subtle-action btn-sm" onclick="registerToolOnly('${esc(newTool)}', '${esc(cat)}', '${uploadedPhotoUrl}')">
-                + Daftarkan Sebagai Alat Tersedia Saja (Ready)
+                📦 Simpan ke Rak Saja (Ready)
               </button>
             </div>
           </div>
