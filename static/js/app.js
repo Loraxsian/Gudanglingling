@@ -961,6 +961,7 @@ async function loadReminders() {
     const res = await fetch('/api/reminders');
     const data = await res.json();
     state.reminders = data.reminders || [];
+    if (typeof updateMessageDueBadge === 'function') updateMessageDueBadge();
   } catch (err) {
     console.error('Error load reminders:', err);
   }
@@ -1262,6 +1263,7 @@ function getUserLogBadge(action) {
   if (action === 'LOGIN') return { icon: '🔐', label: 'Login', color: 'var(--green-text)' };
   if (action === 'LOGIN_GAGAL') return { icon: '⚠️', label: 'Login Gagal', color: 'var(--red-text)' };
   if (action === 'TAMBAH_BARANG') return { icon: '➕', label: 'Tambah Barang', color: 'var(--accent-primary)' };
+  if (action === 'EDIT_BARANG') return { icon: '✏️', label: 'Edit Barang', color: 'var(--accent-primary)' };
   if (action === 'HAPUS_BARANG') return { icon: '🗑️', label: 'Hapus Barang', color: 'var(--red-text)' };
   if (action === 'BUKA_KUNCI') return { icon: '🔓', label: 'Buka Kunci', color: 'var(--yellow-text)' };
   return { icon: '📝', label: action || 'Aktivitas', color: 'var(--text-secondary)' };
@@ -1332,6 +1334,65 @@ async function showUserActivityLogsInChat() {
   } catch (err) {
     appendBotChat('Gagal mengambil log aktivitas user dari server.');
   }
+}
+
+async function showVersionStatusInChat() {
+  try {
+    const res = await fetch('/api/version-check?force=1');
+    const data = await res.json();
+    const curVer = data.current_version || '1.0.2';
+    const latestVer = data.latest_version || curVer;
+    if (data.update_available && data.latest_version) {
+      latestDetectedTag = data.latest_tag || data.latest_version;
+      appendBotChat(`
+        📦 <strong>Versi Aplikasi GudangLingling:</strong><br>
+        <div style="background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:8px;padding:10px;margin-top:6px;font-size:12px;line-height:1.55;">
+          • <strong>Versi Aktif:</strong> v${esc(curVer)}<br>
+          • <strong>Status:</strong> 🆕 Tersedia versi baru <strong>v${esc(latestVer)}</strong> di GitHub
+        </div>
+        <div style="margin-top:8px;">
+          <button class="btn-act btn-primary-action btn-sm" onclick="applyVersionUpdate()">Update Sekarang</button>
+        </div>
+      `);
+    } else {
+      appendBotChat(`
+        📦 <strong>Versi Aplikasi GudangLingling:</strong><br>
+        <div style="background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:8px;padding:10px;margin-top:6px;font-size:12px;line-height:1.55;">
+          • <strong>Versi Aktif:</strong> v${esc(curVer)}<br>
+          • <strong>Status:</strong> ✅ Sudah menggunakan versi terbaru.
+        </div>
+      `);
+    }
+  } catch (err) {
+    appendBotChat('Gagal memeriksa versi aplikasi saat ini.');
+  }
+}
+
+async function showSystemSummaryInChat() {
+  let ver = '1.0.2';
+  try {
+    const res = await fetch('/api/version-check');
+    const data = await res.json();
+    if (data && data.current_version) ver = data.current_version;
+  } catch (e) {}
+
+  const items = state.items || [];
+  const readyCount = items.filter(i => i.status === 'AVAILABLE').length;
+  const borrowedCount = items.filter(i => i.status === 'BORROWED').length;
+  const lockedCount = items.filter(i => i.status === 'MAINTENANCE_LOCKED').length;
+  const remCount = (state.reminders || []).length;
+  const logCount = (state.emailLogs || []).length;
+
+  appendBotChat(`
+    📊 <strong>Summary System GudangLingling AI</strong><br>
+    <div style="background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:8px;padding:10px;margin-top:6px;font-size:12px;line-height:1.6;">
+      • <strong>Versi &amp; Status:</strong> v${esc(ver)} &bull; Online<br>
+      • <strong>Pengurus Aktif:</strong> ${esc(state.displayName || 'Kak Ling')}<br>
+      • <strong>Inventaris:</strong> ${items.length} total (${readyCount} Ready, ${borrowedCount} Dipinjam, ${lockedCount} Terkunci)<br>
+      • <strong>Antrean &amp; Arsip:</strong> ${remCount} pengembalian aktif &bull; ${logCount} log arsip<br>
+      • <strong>Mesin AI:</strong> State-Space, Forward Chaining + CF, Heuristic Risk Triase
+    </div>
+  `);
 }
 
 function closeAppConfirm() {
@@ -1470,11 +1531,12 @@ function renderAssetDetailContent(item, records, body) {
       <div class="detail-section-title">Riwayat Triase AI (5 Terakhir)</div>
       <div class="history-mini-list">${historyHtml}</div>
 
-      <div style="display:flex;gap:8px;margin-top:6px;">
+      <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap;">
         ${item.status === 'AVAILABLE' ? `
-        <button class="btn-act btn-primary-action" onclick="closeAssetDetailModal(); openBorrowWizard(${item.id});">
+        <button class="btn-act btn-primary-action" style="flex:1;min-width:140px;" onclick="closeAssetDetailModal(); openBorrowWizard(${item.id});">
           Pinjam Alat Ini Sekarang
         </button>` : ''}
+        <button class="btn-act btn-subtle-action btn-sm" style="width:auto;" onclick="closeAssetDetailModal(); openEditItemModal(${item.id});">✏️ Edit</button>
         <button class="btn-act btn-danger-action btn-sm" style="width:auto;" onclick="handleDeleteItem(${item.id})">Hapus Alat</button>
       </div>
     </div>
@@ -1860,13 +1922,54 @@ function toggleAddItemPowerField() {
   }
 }
 
+let editingItemId = null;
+
 function openAddItemModal() {
+  editingItemId = null;
+  const titleEl = document.getElementById('add-item-modal-title');
+  const submitEl = document.getElementById('add-item-submit-btn');
+  if (titleEl) titleEl.textContent = 'Tambah Alat Baru ke Inventaris';
+  if (submitEl) submitEl.textContent = 'Simpan ke Inventaris';
   const modal = document.getElementById('modal-add-item');
   if (modal) modal.classList.add('open');
   toggleAddItemPowerField();
 }
 
+function openEditItemModal(itemId) {
+  const item = state.items.find(i => i.id === itemId);
+  if (!item) return;
+  editingItemId = item.id;
+
+  const titleEl = document.getElementById('add-item-modal-title');
+  const submitEl = document.getElementById('add-item-submit-btn');
+  if (titleEl) titleEl.textContent = 'Edit Data Barang';
+  if (submitEl) submitEl.textContent = 'Simpan Perubahan';
+
+  document.getElementById('add-item-name').value = item.name || '';
+  const catEl = document.getElementById('add-item-category');
+  const mappedCat = normalizeCategory(item.category);
+  const hasOption = Array.from(catEl.options).some(o => o.value === mappedCat);
+  catEl.value = hasOption ? mappedCat : 'Lainnya';
+  document.getElementById('add-item-power').value = String(item.power_watts || 0);
+  document.getElementById('add-item-danger').value = item.danger_level || 'SEDANG';
+  document.getElementById('add-item-desc').value = item.description || '';
+  toggleAddItemPowerField();
+
+  const wrap = document.getElementById('add-item-preview-wrap');
+  const img = document.getElementById('add-item-preview-img');
+  if (item.last_photo_url && wrap && img) {
+    img.src = item.last_photo_url;
+    wrap.style.display = 'block';
+  } else if (wrap) {
+    wrap.style.display = 'none';
+  }
+
+  const modal = document.getElementById('modal-add-item');
+  if (modal) modal.classList.add('open');
+}
+
 function closeAddItemModal() {
+  editingItemId = null;
   const modal = document.getElementById('modal-add-item');
   if (modal) modal.classList.remove('open');
   const form = document.getElementById('form-add-item');
@@ -1907,7 +2010,7 @@ async function handleCreateItem(e) {
     return;
   }
 
-  let photoUrl = getDefaultCategoryPhoto(category);
+  let photoUrl = editingItemId ? '' : getDefaultCategoryPhoto(category);
 
   if (fileInput && fileInput.files && fileInput.files[0]) {
     try {
@@ -1927,27 +2030,32 @@ async function handleCreateItem(e) {
     }
   }
 
+  const isEdit = Boolean(editingItemId);
+  const endpoint = isEdit ? '/api/items/update' : '/api/items';
+  const payload = {
+    name,
+    category,
+    power_watts: power,
+    danger_level: danger,
+    description: desc,
+    last_photo_url: photoUrl
+  };
+  if (isEdit) payload.item_id = editingItemId;
+
   try {
-    const res = await fetch('/api/items', {
+    const res = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name,
-        category,
-        power_watts: power,
-        danger_level: danger,
-        description: desc,
-        last_photo_url: photoUrl
-      })
+      body: JSON.stringify(payload)
     });
     const data = await res.json();
     if (res.ok && data.success) {
       closeAddItemModal();
       await loadItems();
       renderBeranda();
-      showToast('Peralatan berhasil ditambahkan ke inventaris!', 'success');
+      showToast(isEdit ? 'Data barang berhasil diperbarui!' : 'Peralatan berhasil ditambahkan ke inventaris!', 'success');
     } else {
-      showToast(data.error || 'Gagal menambahkan peralatan.', 'warn');
+      showToast(data.error || 'Gagal menyimpan data peralatan.', 'warn');
     }
   } catch (err) {
     showToast('Gagal menghubungi server.', 'warn');
@@ -1982,10 +2090,52 @@ function handleDeleteItem(itemId) {
   });
 }
 
+function compressImageDataUrl(dataUrl, maxDim = 1080, quality = 0.78) {
+  return new Promise((resolve) => {
+    if (typeof Image === 'undefined' || typeof document === 'undefined') {
+      resolve(dataUrl);
+      return;
+    }
+    const img = new Image();
+    img.onload = () => {
+      try {
+        let w = img.width;
+        let h = img.height;
+        if (w > maxDim || h > maxDim) {
+          if (w >= h) {
+            h = Math.round((h * maxDim) / w);
+            w = maxDim;
+          } else {
+            w = Math.round((w * maxDim) / h);
+            h = maxDim;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      } catch (e) {
+        resolve(dataUrl);
+      }
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
+
 function readFileAsBase64(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
+    reader.onload = async () => {
+      const raw = reader.result;
+      if (file && file.type && file.type.startsWith('image/')) {
+        resolve(await compressImageDataUrl(raw));
+      } else {
+        resolve(raw);
+      }
+    };
     reader.onerror = reject;
     reader.readAsDataURL(file);
   });
@@ -1994,7 +2144,20 @@ function readFileAsBase64(file) {
 // ============================================================
 // 5. MENU 2: MESSAGE (Pengingat & Manajemen Kontak)
 // ============================================================
+function updateMessageDueBadge() {
+  const dueCount = (state.reminders || []).filter(r => (r.borrow_days - (r.days_elapsed || 0)) <= 0).length;
+  document.querySelectorAll('.nav-due-badge').forEach(el => {
+    if (dueCount > 0) {
+      el.textContent = dueCount > 99 ? '99+' : String(dueCount);
+      el.style.display = 'inline-flex';
+    } else {
+      el.style.display = 'none';
+    }
+  });
+}
+
 function renderMessage() {
+  updateMessageDueBadge();
   const reminderContainer = document.getElementById('reminder-list');
   reminderContainer.innerHTML = '';
 
@@ -2208,26 +2371,27 @@ let chatAttachedPhoto = {
   file: null
 };
 
-function handleChatFileSelect(e) {
+async function handleChatFileSelect(e) {
   const file = e.target.files && e.target.files[0];
   if (!file) return;
 
-  const reader = new FileReader();
-  reader.onload = function(evt) {
+  try {
+    const compressed = await readFileAsBase64(file);
     chatAttachedPhoto = {
-      base64: evt.target.result,
+      base64: compressed,
       file: file
     };
     const previewWrap = document.getElementById('chat-attach-preview');
     const previewImg = document.getElementById('chat-attach-img');
     if (previewImg && previewWrap) {
-      previewImg.src = evt.target.result;
+      previewImg.src = compressed;
       previewWrap.style.display = 'flex';
     }
     const input = document.getElementById('chat-user-input');
     if (input) input.focus();
-  };
-  reader.readAsDataURL(file);
+  } catch (err) {
+    showToast('Gagal memproses foto.', 'warn');
+  }
 }
 
 function removeChatAttachment() {
@@ -3376,6 +3540,18 @@ async function processUserChatMessage(rawText, photoBase64 = null) {
           • <strong>Kembalikan:</strong> <em>"Budi kembalikan bor"</em>
         </div>
       `);
+      return;
+    }
+
+    // 0F. Intent: Summary System / Ringkasan Sistem
+    if (/\b(summary(\s+system)?|ringkasan(\s+sistem)?|status\s+sistem|rekap(\s+sistem|\s+gudang)?)\b/.test(query)) {
+      showSystemSummaryInChat();
+      return;
+    }
+
+    // 0G. Intent: Versi Aplikasi / Cek Update
+    if (/\b(versi|version|cek\s*update|pembaruan)\b/.test(query)) {
+      showVersionStatusInChat();
       return;
     }
 

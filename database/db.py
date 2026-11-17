@@ -278,6 +278,48 @@ def add_item(data: Dict[str, Any]) -> int:
         return cursor.lastrowid
 
 
+def update_item(item_id: int, data: Dict[str, Any]) -> bool:
+    """Memperbarui data alat yang sudah ada di inventaris."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        photo = (data.get("last_photo_url") or "").strip()
+        if photo:
+            cursor.execute(
+                """
+                UPDATE items
+                SET name = ?, category = ?, power_watts = ?, description = ?, danger_level = ?, last_photo_url = ?
+                WHERE id = ?
+                """,
+                (
+                    (data.get("name") or "").strip(),
+                    (data.get("category") or "Lainnya").strip(),
+                    int(data.get("power_watts") or 0),
+                    (data.get("description") or "").strip(),
+                    (data.get("danger_level") or "SEDANG").strip(),
+                    photo,
+                    item_id,
+                ),
+            )
+        else:
+            cursor.execute(
+                """
+                UPDATE items
+                SET name = ?, category = ?, power_watts = ?, description = ?, danger_level = ?
+                WHERE id = ?
+                """,
+                (
+                    (data.get("name") or "").strip(),
+                    (data.get("category") or "Lainnya").strip(),
+                    int(data.get("power_watts") or 0),
+                    (data.get("description") or "").strip(),
+                    (data.get("danger_level") or "SEDANG").strip(),
+                    item_id,
+                ),
+            )
+        conn.commit()
+        return cursor.rowcount > 0
+
+
 def delete_item(item_id: int) -> bool:
     """Menghapus alat beserta riwayat peminjaman dan log terkait agar tidak menjadi data yatim."""
     with get_connection() as conn:

@@ -8,7 +8,7 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32x32.png">
   <link rel="icon" type="image/png" sizes="64x64" href="/img/favicon-64x64.png">
   <link rel="apple-touch-icon" href="/img/logo-emblem.png">
-  <link rel="stylesheet" href="/css/style.css?v=1.0.2">
+  <link rel="stylesheet" href="/css/style.css?v=1.0.3">
 </head>
 <body>
 
@@ -92,7 +92,7 @@
         <!-- Desktop Navigation Tabs (>= 768px) -->
         <nav class="desktop-nav">
           <button class="desktop-nav-btn active" data-tab="beranda">Beranda</button>
-          <button class="desktop-nav-btn" data-tab="message">Message</button>
+          <button class="desktop-nav-btn" data-tab="message" style="position:relative;">Message <span class="nav-due-badge" style="display:none;">0</span></button>
           <button class="desktop-nav-btn" data-tab="faq">FaQ</button>
         </nav>
 
@@ -475,7 +475,8 @@
       </svg>
       <span class="nav-tab-label">Beranda</span>
     </button>
-    <button class="nav-tab-item" data-tab="message">
+    <button class="nav-tab-item" data-tab="message" style="position:relative;">
+      <span class="nav-due-badge nav-due-badge-mobile" style="display:none;">0</span>
       <svg viewBox="0 0 24 24" fill="none" stroke-width="2">
         <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
       </svg>
@@ -591,7 +592,7 @@
 <div class="modal-overlay" id="modal-add-item">
   <div class="modal-dialog">
     <div class="modal-dialog-header">
-      <strong style="font-size:14px;">Tambah Alat Baru ke Inventaris</strong>
+      <strong style="font-size:14px;" id="add-item-modal-title">Tambah Alat Baru ke Inventaris</strong>
       <button class="btn-drawer" onclick="closeAddItemModal()">&times;</button>
     </div>
     <div class="modal-dialog-body">
@@ -642,7 +643,7 @@
         </div>
 
         <div style="display:flex;gap:8px;margin-top:12px;">
-          <button type="submit" class="btn-act btn-primary-action">Simpan ke Inventaris</button>
+          <button type="submit" class="btn-act btn-primary-action" id="add-item-submit-btn">Simpan ke Inventaris</button>
           <button type="button" class="btn-act btn-subtle-action" onclick="closeAddItemModal()">Batal</button>
         </div>
       </form>
@@ -962,6 +963,6 @@
 <!-- ==================== TOAST NOTIFICATION CONTAINER ==================== -->
 <div class="app-toast" id="app-toast"></div>
 
-<script src="/js/app.js?v=1.0.2"></script>
+<script src="/js/app.js?v=1.0.3"></script>
 </body>
 </html>

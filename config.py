@@ -21,7 +21,7 @@ SECONDARY_FAMILY_PIN = "2422031"  # NIM Pengembang (Liana Sry Astuti) sebagai PI
 # Server settings
 HOST = os.environ.get("HOST", "0.0.0.0")
 PORT = int(os.environ.get("PORT", 8085))
-APP_VERSION = "1.0.2"
+APP_VERSION = "1.0.3"
 GITHUB_REPO = "Loraxsian/Gudanglingling"
 
 # Heuristic Risk Evaluation Thresholds (Modul 4.5)

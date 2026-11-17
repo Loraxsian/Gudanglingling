@@ -34,6 +34,7 @@ from database.db import (
     get_all_items,
     get_item_by_id,
     add_item,
+    update_item,
     delete_item,
     update_item_status,
     save_borrowing_record,
@@ -413,6 +414,7 @@ class GudangLinglingRequestHandler(BaseHTTPRequestHandler):
             "/api/items/unlock",
             "/api/items",
             "/api/items/create",
+            "/api/items/update",
             "/api/items/delete",
         }
         if path in protected_post_paths:
@@ -924,6 +926,27 @@ class GudangLinglingRequestHandler(BaseHTTPRequestHandler):
             cat = (body.get("category") or "-").strip()
             log_user_activity(actor, "TAMBAH_BARANG", f"Menambah barang: {name} ({cat})", client_ip)
             self._send_json({"success": True, "item_id": item_id, "message": "Alat berhasil ditambahkan ke inventaris."})
+            return
+
+        # 9B. API: Edit / Perbarui Data Alat di Inventaris
+        if path == "/api/items/update":
+            item_id = body.get("item_id")
+            name = (body.get("name") or "").strip()
+            if not item_id or not name:
+                self._send_json({"error": "item_id dan nama barang wajib diisi."}, 400)
+                return
+            existing = get_item_by_id(int(item_id))
+            if not existing:
+                self._send_json({"error": "Barang tidak ditemukan."}, 404)
+                return
+            ok = update_item(int(item_id), body)
+            if ok:
+                actor = get_auth_status().get("display_name") or "Pengurus"
+                client_ip = self.client_address[0] if self.client_address else ""
+                cat = (body.get("category") or existing.get("category") or "-").strip()
+                log_user_activity(actor, "EDIT_BARANG", f"Mengubah barang: {name} ({cat})", client_ip)
+            updated = get_item_by_id(int(item_id))
+            self._send_json({"success": ok, "item": updated, "message": "Data barang berhasil diperbarui."})
             return
 
         # 10. API: Hapus Alat dari Inventaris
