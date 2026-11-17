@@ -902,6 +902,18 @@ function toggleFaq(btn) {
   span.textContent = card.classList.contains('open') ? '−' : '+';
 }
 
+function switchFaqSubTab(subTabId) {
+  document.querySelectorAll('.faq-subtab-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.faqSub === subTabId);
+  });
+  document.querySelectorAll('.faq-sub-content').forEach(pane => {
+    pane.classList.toggle('active', pane.id === `faq-sub-${subTabId}`);
+  });
+  if (subTabId === 'teknis') {
+    renderFaq();
+  }
+}
+
 // ============================================================
 // 7. DRAGGABLE CHATBOT WORKFLOW (State-Space S0 -> G)
 // ============================================================
@@ -1075,7 +1087,7 @@ function handleChatQuickAction(action) {
         <li><strong>Modul 4.5 (Heuristic Risk Triase):</strong> Evaluasi 3 zona keselamatan (Hijau, Kuning, Merah).</li>
       </ol>
       <div style="margin-top:6px;">
-        <button class="btn-act btn-subtle-action btn-sm" onclick="closeChatDrawer(); document.querySelector('[data-tab=faq]').click();">Buka Dokumentasi di Menu FaQ</button>
+        <button class="btn-act btn-subtle-action btn-sm" onclick="closeChatDrawer(); document.querySelector('[data-tab=faq]').click(); switchFaqSubTab('teknis');">Buka Dokumentasi Teknis di Menu FaQ</button>
       </div>
     `);
   }
