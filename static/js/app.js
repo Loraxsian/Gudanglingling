@@ -2076,6 +2076,13 @@ function parseNaturalBorrowQuery(text) {
     phone = phoneMatch[1].replace(/[\-\s]/g, '');
   }
 
+  // 2B. Extract Power Wattage (e.g. "900w", "500 watt")
+  let powerWatts = 0;
+  const wattMatch = text.match(/\b(\d{2,4})\s*(?:w|watt)\b/i);
+  if (wattMatch) {
+    powerWatts = parseInt(wattMatch[1], 10);
+  }
+
   // 3. Extract Duration (days) & strip duration phrase from working text
   let days = 1;
   let durationMatchedPhrase = '';
@@ -2099,9 +2106,10 @@ function parseNaturalBorrowQuery(text) {
     }
   }
 
-  // Working text with phone & duration removed cleanly
+  // Working text with phone, wattage & duration removed cleanly
   let workText = text;
   if (phoneMatch) workText = workText.replace(phoneMatch[0], ' ');
+  if (wattMatch) workText = workText.replace(wattMatch[0], ' ');
   if (durationMatchedPhrase) workText = workText.replace(durationMatchedPhrase, ' ');
   workText = workText.replace(/\s+/g, ' ').trim();
 
@@ -2236,12 +2244,14 @@ function parseNaturalBorrowQuery(text) {
         name: formattedBorrower,
         phone,
         days,
+        powerWatts,
         category: guessToolCategory(formattedToolName)
       };
     } else {
       return {
         type: 'REGISTER_NEW_TOOL',
         newToolName: formattedToolName,
+        powerWatts,
         category: guessToolCategory(formattedToolName)
       };
     }
@@ -2255,7 +2265,7 @@ function parseNaturalBorrowQuery(text) {
   };
 }
 
-async function registerAndBorrowDirectly(toolName, category, photoUrl, borrowerName, borrowerPhone, borrowDays, phoneInputId = '') {
+async function registerAndBorrowDirectly(toolName, category, photoUrl, borrowerName, borrowerPhone, borrowDays, phoneInputId = '', powerWatts = 0) {
   const inlineInput = phoneInputId ? document.getElementById(phoneInputId) : null;
   const finalPhone = (inlineInput ? inlineInput.value.trim() : '') || borrowerPhone || '';
   const btn = document.getElementById('btn-reg-borrow-direct');
@@ -2274,8 +2284,8 @@ async function registerAndBorrowDirectly(toolName, category, photoUrl, borrowerN
       body: JSON.stringify({
         name: toolName,
         category: category,
-        power_watts: 0,
-        danger_level: 'SEDANG',
+        power_watts: parseInt(powerWatts || 0, 10),
+        danger_level: powerWatts > 0 ? 'TINGGI' : 'SEDANG',
         description: 'Didaftarkan instan via Asisten GudangLingling AI',
         last_photo_url: finalPhoto
       })
@@ -2337,7 +2347,7 @@ async function registerAndBorrowDirectly(toolName, category, photoUrl, borrowerN
   }
 }
 
-async function registerToolOnly(toolName, category, photoUrl) {
+async function registerToolOnly(toolName, category, photoUrl, powerWatts = 0) {
   const finalPhoto = photoUrl || getDefaultCategoryPhoto(category);
   try {
     const res = await fetch('/api/items', {
@@ -2346,8 +2356,8 @@ async function registerToolOnly(toolName, category, photoUrl) {
       body: JSON.stringify({
         name: toolName,
         category: category,
-        power_watts: 0,
-        danger_level: 'SEDANG',
+        power_watts: parseInt(powerWatts || 0, 10),
+        danger_level: powerWatts > 0 ? 'TINGGI' : 'SEDANG',
         description: 'Didaftarkan instan via Asisten GudangLingling AI',
         last_photo_url: finalPhoto
       })
@@ -2458,6 +2468,95 @@ function openBorrowWizardWithData(toolId, name, phone, days) {
   }
 }
 
+function cancelExpressCard(btn) {
+  const card = btn ? btn.closest('.chat-express-card, .chat-new-tool-card') : null;
+  if (card) {
+    card.style.opacity = '0.55';
+    card.style.pointerEvents = 'none';
+  }
+  appendBotChat('Baik, permintaan dibatalkan. Silakan ketik ulang jika ada yang ingin diubah.');
+}
+
+async function unlockToolFromChat(itemId, itemName) {
+  try {
+    const res = await fetch('/api/items/unlock', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ item_id: itemId })
+    });
+    if (res.ok) {
+      await loadAllData();
+      appendBotChat(`
+        <div style="background:var(--green-bg);border:1px solid var(--green-border);border-radius:10px;padding:10px;">
+          <strong style="color:var(--green-text);font-size:12.5px;">🔓 Kunci Servis Dibuka!</strong><br>
+          <span style="font-size:12px;color:var(--text-primary);"><strong>${esc(itemName)}</strong> kini kembali berstatus <strong>Ready</strong> dan siap dipinjam.</span>
+        </div>
+      `);
+      showToast(`${itemName} berhasil dibuka kunci servisnya.`, 'success');
+    } else {
+      showToast('Gagal membuka kunci servis alat.', 'warn');
+    }
+  } catch (err) {
+    showToast('Gagal menghubungi server.', 'warn');
+  }
+}
+
+function parseExpressReturnQuery(text) {
+  const lower = (text || '').toLowerCase().trim();
+  if (!lower) return null;
+  const isQuestion = /^(bagaimana|gimana|apa|apakah|berapa|kenapa|mengapa|siapa|aturan|syarat)\b/i.test(lower);
+  if (isQuestion) return null;
+  if (!/\b(kembalikan|mengembalikan|balikin|pulangkan|selesai\s*pakai|kembali)\b/i.test(lower)) return null;
+
+  const active = state.reminders || [];
+  for (const r of active) {
+    const iName = (r.item_name || '').toLowerCase();
+    const bName = (r.borrower_name || '').toLowerCase();
+    const itemWords = iName.split(/\s+/).filter(w => w.length >= 3);
+    if ((iName && lower.includes(iName)) || itemWords.some(w => lower.includes(w)) || (bName && lower.includes(bName))) {
+      return { matched: true, record: r };
+    }
+  }
+  return { matched: false, records: active };
+}
+
+async function executeExpressReturn(recordId, returnPhotoUrl, itemName) {
+  if (!returnPhotoUrl) {
+    closeChatDrawer();
+    openReturnModalByRecordId(recordId);
+    return;
+  }
+  const btn = document.getElementById(`btn-express-return-${recordId}`);
+  if (btn) {
+    btn.textContent = 'Memproses...';
+    btn.disabled = true;
+  }
+  try {
+    const res = await fetch('/api/borrow/return-check', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ record_id: recordId, return_photo_url: returnPhotoUrl })
+    });
+    const data = await res.json();
+    if (res.ok && data.success) {
+      await loadAllData();
+      appendBotChat(`
+        <div style="background:var(--green-bg);border:1px solid var(--green-border);border-radius:10px;padding:10px;">
+          <strong style="color:var(--green-text);font-size:12.5px;">✅ Pengembalian Selesai!</strong><br>
+          <span style="font-size:12px;color:var(--text-primary);"><strong>${esc(itemName)}</strong> telah diverifikasi dengan foto akhir dan kembali berstatus <strong>Ready</strong>.</span>
+        </div>
+      `);
+      showToast(`Pengembalian ${itemName} berhasil diverifikasi!`, 'success');
+    } else {
+      showToast(data.error || 'Gagal memproses pengembalian.', 'warn');
+      if (btn) { btn.textContent = '✅ Selesaikan Pengembalian'; btn.disabled = false; }
+    }
+  } catch (err) {
+    showToast('Koneksi server gagal.', 'warn');
+    if (btn) { btn.textContent = '✅ Selesaikan Pengembalian'; btn.disabled = false; }
+  }
+}
+
 // Conversational AI Parser (Intelligent Natural Responses & Photo Attachment)
 async function processUserChatMessage(rawText, photoBase64 = null) {
   appendUserChat(rawText, photoBase64);
@@ -2482,6 +2581,52 @@ async function processUserChatMessage(rawText, photoBase64 = null) {
   const query = (rawText || '').toLowerCase().trim();
 
   setTimeout(() => {
+    // 0A. EXPRESS RETURN VIA CHAT (e.g. "Budi kembalikan bor" + optional photo)
+    const returnIntent = parseExpressReturnQuery(rawText);
+    if (returnIntent) {
+      if (returnIntent.matched && returnIntent.record) {
+        const rec = returnIntent.record;
+        const hasPhoto = Boolean(uploadedPhotoUrl);
+        appendBotChat(`
+          <div class="chat-express-card">
+            <div class="express-header">
+              <span class="express-badge">📸 Pengembalian Alat</span>
+              <span class="status-pulse-dot yellow" style="position:static;"></span>
+            </div>
+            <div style="font-size:12.5px;color:var(--text-primary);margin-bottom:8px;">
+              <strong>${esc(rec.item_name)}</strong> dipinjam oleh <strong>${esc(rec.borrower_name)}</strong>.
+            </div>
+            <div style="font-size:11.5px;color:${hasPhoto ? 'var(--green-text)' : 'var(--yellow-text)'};margin-bottom:10px;">
+              ${hasPhoto ? '✅ Foto kondisi akhir sudah terlampir dan siap diverifikasi.' : '⚠️ Foto kondisi akhir wajib diunggah untuk perbandingan Sebelum vs Sesudah.'}
+            </div>
+            <div class="express-actions-col">
+              ${hasPhoto
+                ? `<button class="btn-act btn-primary-action btn-sm" id="btn-express-return-${rec.id}" onclick="executeExpressReturn(${rec.id}, '${uploadedPhotoUrl}', '${esc(rec.item_name)}')">✅ Selesaikan Pengembalian</button>`
+                : `<button class="btn-act btn-primary-action btn-sm" onclick="closeChatDrawer(); openReturnModalByRecordId(${rec.id});">📸 Buka Cek Pengembalian</button>`}
+              <button class="btn-act btn-subtle-action btn-sm" onclick="cancelExpressCard(this)">✖️ Batal</button>
+            </div>
+          </div>
+        `);
+        return;
+      } else {
+        const activeList = returnIntent.records || [];
+        if (!activeList.length) {
+          appendBotChat('✅ Saat ini tidak ada alat yang sedang dipinjam. Semua perkakas sudah berada di rak.');
+        } else {
+          const chips = activeList.map(r => `
+            <button class="chat-quick-btn" onclick="closeChatDrawer(); openReturnModalByRecordId(${r.id});">
+              <span>📸</span><span>${esc(r.item_name)} (${esc(r.borrower_name)})</span>
+            </button>
+          `).join('');
+          appendBotChat(`
+            Pilih alat yang ingin dikembalikan:
+            <div class="chat-chip-row">${chips}</div>
+          `);
+        }
+        return;
+      }
+    }
+
     // 0. NATURAL LANGUAGE EXPRESS BORROWING (e.g. "Budi pinjam cangkul 3 hari nomor wa 082173399003")
     const borrowIntent = parseNaturalBorrowQuery(rawText);
     if (borrowIntent) {
@@ -2516,7 +2661,15 @@ async function processUserChatMessage(rawText, photoBase64 = null) {
 
         if (tool.status === 'MAINTENANCE_LOCKED') {
           appendBotChat(`
-            Peringatan Keselamatan: <strong>${esc(tool.name)}</strong> saat ini berstatus <strong>Karantina Servis (Lockout)</strong> dan belum boleh dipinjamkan demi keselamatan bersama.
+            <div style="background:var(--red-bg);border:1px solid var(--red-border);border-radius:10px;padding:10px;">
+              <strong style="color:var(--red-text);font-size:12.5px;">🔒 Alat Sedang Karantina Servis</strong>
+              <p style="font-size:12px;color:var(--text-primary);margin:6px 0 8px;">
+                <strong>${esc(tool.name)}</strong> belum boleh dipinjamkan sampai selesai diperbaiki.
+              </p>
+              <button class="btn-act btn-warning-action btn-sm" onclick="unlockToolFromChat(${tool.id}, '${esc(tool.name)}')">
+                🔓 Buka Kunci Servis (Sudah Diperbaiki)
+              </button>
+            </div>
           `);
           return;
         }
@@ -2582,6 +2735,9 @@ async function processUserChatMessage(rawText, photoBase64 = null) {
               <button class="btn-act btn-subtle-action btn-sm" onclick="openBorrowWizardWithData(${tool.id}, '${esc(name)}', '${esc(phone)}', ${days})">
                 🔧 Sesuaikan di Form Wizard
               </button>
+              <button class="btn-act btn-subtle-action btn-sm" style="color:var(--red-text);" onclick="cancelExpressCard(this)">
+                ✖️ Batal
+              </button>
             </div>
           </div>
         `);
@@ -2592,6 +2748,7 @@ async function processUserChatMessage(rawText, photoBase64 = null) {
       if (borrowIntent.type === 'BORROW_NEW_TOOL') {
         const newTool = borrowIntent.newToolName;
         const cat = borrowIntent.category;
+        const watts = borrowIntent.powerWatts || 0;
         const name = borrowIntent.name;
         let phone = borrowIntent.phone;
         let phoneFromHistory = false;
@@ -2603,6 +2760,21 @@ async function processUserChatMessage(rawText, photoBase64 = null) {
           }
         }
         const days = borrowIntent.days;
+        const maxNewDays = getMaxBorrowDays({ category: cat, power_watts: watts, danger_level: watts > 0 ? 'TINGGI' : 'SEDANG' });
+        if (days > maxNewDays) {
+          appendBotChat(`
+            <div style="background:var(--yellow-bg);border:1px solid var(--yellow-border);border-radius:10px;padding:12px;">
+              <strong style="color:var(--yellow-text);font-size:12.5px;">⚠️ Aturan Sistem Pakar: Durasi Terlalu Lama</strong>
+              <p style="font-size:12px;color:var(--text-primary);margin:6px 0 10px;line-height:1.45;">
+                Untuk alat baru kategori <strong>${esc(cat)}</strong>${watts ? ` (${watts}W)` : ''}, batas maksimal peminjaman adalah <strong>${maxNewDays} hari</strong>.
+              </p>
+              <button class="btn-act btn-primary-action btn-sm" onclick="sendSuggestedQuery('${esc(name)} pinjam ${esc(newTool)}${watts ? ' ' + watts + 'w' : ''} ${maxNewDays} hari${phone ? ' wa ' + esc(phone) : ''}')">
+                ⚡ Sesuaikan Jadi ${maxNewDays} Hari
+              </button>
+            </div>
+          `);
+          return;
+        }
         const displayPhoto = uploadedPhotoUrl || getDefaultCategoryPhoto(cat);
         const inlineNewWaId = `express-new-wa-${Date.now()}`;
 
@@ -2622,7 +2794,7 @@ async function processUserChatMessage(rawText, photoBase64 = null) {
               <img class="express-tool-thumb" src="${displayPhoto}" alt="${esc(newTool)}" onerror="this.onerror=null; this.src='/img/toolset.svg';">
               <div style="flex:1;">
                 <div style="font-weight:700;font-size:13px;color:var(--text-primary);">${esc(newTool)}</div>
-                <div style="font-size:11px;color:var(--text-secondary);">Kategori: <strong>${esc(cat)}</strong></div>
+                <div style="font-size:11px;color:var(--text-secondary);">Kategori: <strong>${esc(cat)}</strong>${watts ? ` &bull; <strong>${watts}W</strong>` : ''}</div>
               </div>
             </div>
 
@@ -2644,11 +2816,14 @@ async function processUserChatMessage(rawText, photoBase64 = null) {
             </div>
 
             <div class="express-actions-col">
-              <button class="btn-act btn-primary-action btn-sm" id="btn-reg-borrow-direct" onclick="registerAndBorrowDirectly('${esc(newTool)}', '${esc(cat)}', '${uploadedPhotoUrl}', '${esc(name)}', '${esc(phone)}', ${days}, '${inlineNewWaId}')">
+              <button class="btn-act btn-primary-action btn-sm" id="btn-reg-borrow-direct" onclick="registerAndBorrowDirectly('${esc(newTool)}', '${esc(cat)}', '${uploadedPhotoUrl}', '${esc(name)}', '${esc(phone)}', ${days}, '${inlineNewWaId}', ${watts})">
                 ⚡ Daftar &amp; Pinjamkan
               </button>
-              <button class="btn-act btn-subtle-action btn-sm" onclick="registerToolOnly('${esc(newTool)}', '${esc(cat)}', '${uploadedPhotoUrl}')">
+              <button class="btn-act btn-subtle-action btn-sm" onclick="registerToolOnly('${esc(newTool)}', '${esc(cat)}', '${uploadedPhotoUrl}', ${watts})">
                 📦 Simpan ke Rak Saja
+              </button>
+              <button class="btn-act btn-subtle-action btn-sm" style="color:var(--red-text);" onclick="cancelExpressCard(this)">
+                ✖️ Batal
               </button>
             </div>
           </div>
