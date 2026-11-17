@@ -2049,6 +2049,13 @@ function parseNaturalBorrowQuery(text) {
   const lower = (text || '').toLowerCase().trim();
   if (!lower) return null;
 
+  // 0. GUARDRAIL: Pertanyaan informatif / FAQ / Riwayat TIDAK BOLEH masuk ke Loan Intent
+  const startsWithQuestion = /^(bagaimana|gimana|apa|apakah|berapa|kenapa|mengapa|kapan|dimana|siapa|bolehkah|jelaskan|info)\b/i.test(lower);
+  const hasFaqOrStatusKeyword = /\b(aturan|syarat|durasi|batas\s*waktu|cara\s*pinjam|cara\s*kerja|biaya|gratis|denda|rusak|zona|triase|forward\s*chaining|certainty|riwayat|histori|log|aktivitas|pengembang|liana|iteba|dosen|ready|tersedia|peminjam\s*terakhir)\b/i.test(lower);
+  if (startsWithQuestion || hasFaqOrStatusKeyword) {
+    return null;
+  }
+
   // 1. Check for borrow or add intent keywords (word-boundary safe so "peminjam" != "minjam")
   const borrowWordRe = /\b(pinjam|minjam|meminjam|sewa|ambil|butuh|pakai|gunakan)\b/i;
   const hasBorrow = borrowWordRe.test(lower);
