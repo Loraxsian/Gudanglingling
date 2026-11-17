@@ -51,6 +51,9 @@
   --shadow-hover:   0 12px 28px -4px rgba(0,0,0,0.5);
   --drawer-bg:      #141c28;
   --greeting-grad:  linear-gradient(135deg, rgba(30,41,59,0.95), rgba(15,23,42,0.98));
+  --header-bg:      linear-gradient(180deg, #172236 0%, #0f172a 100%);
+  --header-border:  rgba(255, 255, 255, 0.09);
+  --header-shadow:  0 4px 18px rgba(0, 0, 0, 0.35);
 
   --pill-bg:        var(--bg-surface);
   --pill-border:    rgba(255, 255, 255, 0.08);
@@ -104,6 +107,9 @@
   --shadow-hover:   0 8px 24px rgba(0,0,0,0.12);
   --drawer-bg:      #f8fafc;
   --greeting-grad:  linear-gradient(135deg, rgba(255,255,255,0.97), rgba(241,245,249,0.98));
+  --header-bg:      linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  --header-border:  rgba(203, 213, 225, 0.75);
+  --header-shadow:  0 4px 14px rgba(15, 23, 42, 0.05);
 
   --pill-bg:        #ffffff;
   --pill-border:    #cbd5e1;
@@ -149,44 +155,118 @@ html, body {
 }
 
 /* Top App Header */
+/* Top App Header & Banner */
 .app-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 12px 18px;
-  background: var(--bg-surface);
-  border-bottom: 1px solid var(--border-subtle);
+  background: var(--header-bg);
+  border-bottom: 1px solid var(--header-border);
+  box-shadow: var(--header-shadow);
+  position: relative;
+  z-index: 40;
   flex-shrink: 0;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 .brand-wrapper {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
+  min-width: 0;
+}
+
+.brand-logo-wrap {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+  border: 1px solid var(--border-subtle);
+  overflow: hidden;
+  padding: 2px;
+}
+
+.brand-logo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
 }
 
 .brand-icon {
-  width: 32px;
-  height: 32px;
-  background: var(--primary);
-  border-radius: var(--radius-sm);
+  width: 38px;
+  height: 38px;
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  border-radius: var(--radius-md);
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 800;
-  font-size: 14px;
-  color: #fff;
+  font-size: 15px;
+  color: #ffffff;
+  box-shadow: 0 3px 12px rgba(37, 99, 235, 0.4);
+  flex-shrink: 0;
+  letter-spacing: -0.5px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.brand-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.brand-title-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .brand-name {
   font-size: 15px;
-  font-weight: 700;
-  letter-spacing: -0.2px;
+  font-weight: 800;
+  letter-spacing: -0.3px;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+/* Header Live Status Ticker Pill */
+.header-status-ticker {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 9px;
+  background: var(--chip-bg);
+  border: 1px solid var(--border-subtle);
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  transition: all 0.2s ease;
+}
+
+.header-status-ticker:hover {
+  background: var(--primary-subtle);
+  border-color: var(--border-focus);
 }
 
 .brand-sub {
   font-size: 11px;
   color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Desktop Header Navigation (Shown on >= 768px) */
@@ -1075,6 +1155,22 @@ html, body {
 .floating-bubble:active {
   cursor: grabbing;
   transform: scale(0.96);
+}
+
+.bubble-logo-img {
+  width: 38px;
+  height: 38px;
+  object-fit: contain;
+  pointer-events: none;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.25));
+}
+
+.drawer-logo-img {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  border-radius: 4px;
+  flex-shrink: 0;
 }
 
 .bubble-indicator {

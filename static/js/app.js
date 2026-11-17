@@ -37,6 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setupDraggableBubble();
   setupChatDrawer();
   updateDynamicGreeting();
+  updateHeaderStatus();
   loadAllData();
   startChatSession();
 });
@@ -98,6 +99,37 @@ function updateDynamicGreeting() {
   if (timeTagEl) timeTagEl.textContent = timeTag;
   if (titleEl) titleEl.textContent = title;
   if (subEl) subEl.textContent = sub;
+}
+
+function updateHeaderStatus() {
+  const dotEl = document.getElementById('header-ticker-dot');
+  const textEl = document.getElementById('header-ticker-text');
+  if (!dotEl || !textEl) return;
+
+  const total = (state.items || []).length;
+  let borrowedCount = 0;
+  let lockedCount = 0;
+
+  (state.items || []).forEach(it => {
+    if (it.status === 'BORROWED') borrowedCount++;
+    else if (it.status === 'MAINTENANCE_LOCKED') lockedCount++;
+  });
+
+  dotEl.className = 'status-pulse-dot';
+
+  if (total === 0) {
+    dotEl.classList.add('green');
+    textEl.innerHTML = 'Status: Bersih &bull; 0 Dipinjam';
+  } else if (lockedCount > 0) {
+    dotEl.classList.add('red');
+    textEl.innerHTML = `Status: Perhatian &bull; ${lockedCount} Terkunci`;
+  } else if (borrowedCount > 0) {
+    dotEl.classList.add('yellow');
+    textEl.innerHTML = `Status: Aktif &bull; ${borrowedCount} Dipinjam`;
+  } else {
+    dotEl.classList.add('green');
+    textEl.innerHTML = 'Status: Aman &bull; 0 Dipinjam';
+  }
 }
 
 function clearSearch() {
@@ -392,6 +424,7 @@ function renderBeranda() {
   document.getElementById('stat-available').textContent = availableCount;
   document.getElementById('stat-borrowed').textContent = borrowedCount;
   document.getElementById('stat-locked').textContent = lockedCount;
+  updateHeaderStatus();
 
   const container = document.getElementById('inventory-grid');
   container.innerHTML = '';

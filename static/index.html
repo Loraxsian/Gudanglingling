@@ -3,7 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>GudangLingling AI — Peminjaman & Triase Risiko</title>
+  <title>GudangLingling — Sistem Lacak Pinjam Barang Warga</title>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="64x64" href="/img/favicon-64x64.png">
+  <link rel="apple-touch-icon" href="/img/logo-emblem.png">
   <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
@@ -13,10 +17,18 @@
   <!-- ==================== TOP APP HEADER ==================== -->
   <header class="app-header">
     <div class="brand-wrapper">
-      <div class="brand-icon">GL</div>
-      <div>
-        <div class="brand-name">GudangLingling AI</div>
-        <div class="brand-sub">Sistem Pakar Peminjaman Alat Rumah Tangga</div>
+      <div class="brand-logo-wrap">
+        <img src="/img/logo-emblem.png" alt="GudangLingling Logo" class="brand-logo-img">
+      </div>
+      <div class="brand-info">
+        <div class="brand-title-line">
+          <span class="brand-name">GudangLingling</span>
+          <div class="header-status-ticker" id="header-status-ticker" title="Status Operasional Gudang Real-time">
+            <span class="status-pulse-dot green" id="header-ticker-dot"></span>
+            <span id="header-ticker-text">Status: Aman &bull; 0 Dipinjam</span>
+          </div>
+        </div>
+        <div class="brand-sub">Sistem Lacak Pinjam Barang Warga</div>
       </div>
     </div>
 
@@ -387,11 +399,7 @@
 
 <!-- ==================== DRAGGABLE FLOATING CHATBOT BUBBLE ==================== -->
 <div class="floating-bubble" id="floating-bubble" title="Buka Asisten Chatbot AI">
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-    <path d="M12 2a2 2 0 0 1 2 2v2h4a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4V4a2 2 0 0 1 2-2z"/>
-    <circle cx="9" cy="12" r="1.5"/>
-    <circle cx="15" cy="12" r="1.5"/>
-  </svg>
+  <img src="/img/logo-emblem.png" alt="GudangLingling Mascot" class="bubble-logo-img">
   <span class="bubble-indicator"></span>
 </div>
 
@@ -401,8 +409,9 @@
 <div class="chat-drawer" id="chat-drawer">
   <div class="drawer-header">
     <div class="drawer-title">
+      <img src="/img/logo-emblem.png" alt="Logo" class="drawer-logo-img">
       <span class="status-pulse-dot green"></span>
-      <span>GudangLingling AI Asisten</span>
+      <span>GudangLingling Asisten</span>
     </div>
     <div class="drawer-actions">
       <button class="btn-drawer btn-drawer-close" id="btn-close-chat" onclick="closeChatDrawer()" title="Tutup Chatbot">&times; Tutup</button>
