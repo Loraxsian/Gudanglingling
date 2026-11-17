@@ -8,7 +8,7 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32x32.png">
   <link rel="icon" type="image/png" sizes="64x64" href="/img/favicon-64x64.png">
   <link rel="apple-touch-icon" href="/img/logo-emblem.png">
-  <link rel="stylesheet" href="/css/style.css?v=7.4">
+  <link rel="stylesheet" href="/css/style.css?v=8.0">
 </head>
 <body>
 
@@ -96,10 +96,25 @@
           <button class="desktop-nav-btn" data-tab="faq">FaQ</button>
         </nav>
 
-        <!-- Logout / Lock Session Button -->
-        <button class="theme-toggle-btn" id="btn-logout" onclick="handleLogout()" title="Kunci / Keluar Sesi">
-          <span>Keluar</span>
-        </button>
+        <!-- Profile Dropdown Menu (Ganti Nama Sapaan, Password & Keluar) -->
+        <div class="profile-menu-wrap" id="profile-menu-wrap">
+          <button type="button" class="profile-menu-btn" id="btn-profile-menu" onclick="toggleProfileDropdown(event)" title="Menu Profil Pengurus">
+            <span class="profile-avatar-dot" id="header-profile-initial">K</span>
+            <span class="profile-short-name" id="header-profile-name">Kak Ling</span>
+            <span style="font-size:10px;opacity:0.75;">&#9662;</span>
+          </button>
+          <div class="profile-dropdown" id="profile-dropdown">
+            <button type="button" class="profile-drop-item" onclick="openProfileModal()">
+              <span>⚙️</span>
+              <span>Atur Profil &amp; Sapaan</span>
+            </button>
+            <div class="profile-drop-divider"></div>
+            <button type="button" class="profile-drop-item danger" onclick="handleLogout()">
+              <span>🚪</span>
+              <span>Keluar Sistem</span>
+            </button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -856,9 +871,48 @@
   </div>
 </div>
 
+<!-- ==================== MODAL PENGATURAN PROFIL & SAPAAN ==================== -->
+<div class="modal-overlay" id="modal-profile-settings" style="z-index:10040;">
+  <div class="modal-dialog" style="max-width:400px;">
+    <div class="modal-dialog-header">
+      <strong style="font-size:14px;">Atur Profil &amp; Sapaan</strong>
+      <button type="button" class="btn-drawer" onclick="closeProfileModal()">&times;</button>
+    </div>
+    <div class="modal-dialog-body">
+      <form id="form-profile-settings" onsubmit="handleSaveProfile(event)" style="display:flex;flex-direction:column;gap:12px;">
+        <div>
+          <label class="form-label" for="profile-display-name">Nama Sapaan di Beranda *</label>
+          <input type="text" id="profile-display-name" class="form-input" placeholder="Contoh: Kak Ling / Pak RT" required>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Akan tampil sebagai: <em>"Halo [Nama], selamat datang kembali!"</em></div>
+        </div>
+
+        <div>
+          <label class="form-label" for="profile-new-password">Password Baru (Opsional)</label>
+          <div class="password-input-wrap">
+            <input type="password" id="profile-new-password" class="form-input" style="padding-right:40px;" minlength="6" placeholder="Kosongkan jika tidak ingin ganti">
+            <button type="button" class="btn-toggle-pw" onclick="togglePasswordVisibility('profile-new-password', this)" title="Tampilkan / Sembunyikan Password">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                <circle cx="12" cy="12" r="3"></circle>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <div id="profile-save-error" class="login-error-box" style="display:none;"></div>
+
+        <div style="display:flex;gap:8px;margin-top:4px;">
+          <button type="submit" id="btn-save-profile" class="btn-act btn-primary-action">Simpan Perubahan</button>
+          <button type="button" class="btn-act btn-subtle-action" onclick="closeProfileModal()">Batal</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
 <!-- ==================== TOAST NOTIFICATION CONTAINER ==================== -->
 <div class="app-toast" id="app-toast"></div>
 
-<script src="/js/app.js?v=7.4"></script>
+<script src="/js/app.js?v=8.0"></script>
 </body>
 </html>

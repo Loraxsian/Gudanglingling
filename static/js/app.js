@@ -7,7 +7,8 @@
 const state = {
   sessionId: null,
   isAuthenticated: false,
-  operatorName: 'Andrian',
+  operatorName: 'lingling',
+  displayName: 'Kak Ling',
   items: [],
   reminders: [],
   emailLogs: [],
@@ -40,15 +41,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const savedSession = sessionStorage.getItem('gl_auth_session');
   const savedOperator = sessionStorage.getItem('gl_operator_name') || 'lingling';
+  const savedDisplay = sessionStorage.getItem('gl_display_name') || 'Kak Ling';
   if (savedSession) {
     state.sessionId = savedSession;
     state.isAuthenticated = true;
-    enterOperationalSession(savedOperator);
+    enterOperationalSession(savedOperator, savedDisplay);
   } else {
     checkDefaultPasswordNote();
     const userInput = document.getElementById('login-operator-input');
     if (userInput) userInput.focus();
   }
+
+  // Close profile dropdown on outside click
+  document.addEventListener('click', (e) => {
+    const wrap = document.getElementById('profile-menu-wrap');
+    const dd = document.getElementById('profile-dropdown');
+    if (dd && wrap && !wrap.contains(e.target)) {
+      dd.classList.remove('open');
+    }
+  });
 });
 
 async function checkDefaultPasswordNote() {
@@ -166,18 +177,21 @@ async function handleLandingLogin(e) {
       if (data.must_change_password) {
         pendingAuthSession = {
           sessionId: data.session_id,
-          operatorName: data.operator_name || username
+          operatorName: data.operator_name || username,
+          displayName: data.display_name || 'Kak Ling'
         };
         openChangePasswordModal();
         return;
       }
 
+      const dName = data.display_name || data.operator_name || 'Kak Ling';
       state.sessionId = data.session_id;
       state.isAuthenticated = true;
       sessionStorage.setItem('gl_auth_session', data.session_id);
       sessionStorage.setItem('gl_operator_name', data.operator_name || username);
-      enterOperationalSession(data.operator_name || username);
-      showToast(`Selamat datang, ${data.operator_name || username}!`, 'success');
+      sessionStorage.setItem('gl_display_name', dName);
+      enterOperationalSession(data.operator_name || username, dName);
+      showToast(`Halo ${dName}, selamat datang kembali!`, 'success');
       return;
     }
 
@@ -284,13 +298,15 @@ async function handleChangeDefaultPassword(e) {
     if (modal) modal.classList.remove('open');
 
     const sessId = (pendingAuthSession && pendingAuthSession.sessionId) || '';
+    const dName = (pendingAuthSession && pendingAuthSession.displayName) || 'Kak Ling';
     state.sessionId = sessId;
     state.isAuthenticated = true;
     sessionStorage.setItem('gl_auth_session', sessId);
     sessionStorage.setItem('gl_operator_name', username);
+    sessionStorage.setItem('gl_display_name', dName);
     pendingAuthSession = null;
 
-    enterOperationalSession(username);
+    enterOperationalSession(username, dName);
     showToast('Password baru disimpan! Selamat datang di GudangLingling.', 'success', 4000);
   } catch (err) {
     showErr('Gagal menghubungi server.');
@@ -331,8 +347,9 @@ function startLoginLockoutTimer(seconds) {
   loginLockoutInterval = setInterval(tick, 1000);
 }
 
-function enterOperationalSession(operatorName) {
-  state.operatorName = operatorName || 'Andrian';
+function enterOperationalSession(operatorName, displayName) {
+  state.operatorName = operatorName || 'lingling';
+  state.displayName = displayName || sessionStorage.getItem('gl_display_name') || 'Kak Ling';
   const gate = document.getElementById('login-gate');
   const shell = document.getElementById('app-shell');
   const bubble = document.getElementById('floating-bubble');
@@ -341,6 +358,7 @@ function enterOperationalSession(operatorName) {
   if (shell) shell.style.display = 'flex';
   if (bubble) bubble.style.display = 'flex';
 
+  syncProfileHeaderUI();
   updateDynamicGreeting();
   updateHeaderStatus();
   loadAllData();
@@ -349,9 +367,121 @@ function enterOperationalSession(operatorName) {
   }
 }
 
+function syncProfileHeaderUI() {
+  const nameEl = document.getElementById('header-profile-name');
+  const initEl = document.getElementById('header-profile-initial');
+  const dName = state.displayName || 'Kak Ling';
+  if (nameEl) nameEl.textContent = dName;
+  if (initEl) initEl.textContent = dName.trim().charAt(0).toUpperCase() || 'K';
+}
+
+function toggleProfileDropdown(e) {
+  if (e) e.stopPropagation();
+  const dd = document.getElementById('profile-dropdown');
+  if (dd) dd.classList.toggle('open');
+}
+
+function openProfileModal() {
+  const dd = document.getElementById('profile-dropdown');
+  if (dd) dd.classList.remove('open');
+
+  const modal = document.getElementById('modal-profile-settings');
+  const nameInput = document.getElementById('profile-display-name');
+  const pwInput = document.getElementById('profile-new-password');
+  const errBox = document.getElementById('profile-save-error');
+
+  if (nameInput) nameInput.value = state.displayName || 'Kak Ling';
+  if (pwInput) {
+    pwInput.value = '';
+    pwInput.type = 'password';
+  }
+  if (errBox) errBox.style.display = 'none';
+  if (modal) modal.classList.add('open');
+  if (nameInput) setTimeout(() => nameInput.focus(), 80);
+}
+
+function closeProfileModal() {
+  const modal = document.getElementById('modal-profile-settings');
+  if (modal) modal.classList.remove('open');
+}
+
+async function handleSaveProfile(e) {
+  e.preventDefault();
+  const nameInput = document.getElementById('profile-display-name');
+  const pwInput = document.getElementById('profile-new-password');
+  const errBox = document.getElementById('profile-save-error');
+  const saveBtn = document.getElementById('btn-save-profile');
+
+  const displayName = (nameInput ? nameInput.value : '').trim();
+  const newPassword = (pwInput ? pwInput.value : '').trim();
+
+  const showErr = (msg) => {
+    if (errBox) {
+      errBox.textContent = msg;
+      errBox.style.display = 'block';
+    }
+  };
+  if (errBox) errBox.style.display = 'none';
+
+  if (!displayName) {
+    showErr('Nama sapaan tidak boleh kosong.');
+    return;
+  }
+  if (newPassword && newPassword.length < 6) {
+    showErr('Password baru minimal 6 karakter.');
+    return;
+  }
+  if (newPassword && newPassword.toLowerCase() === 'ling123') {
+    showErr('Password baru tidak boleh sama dengan password default (ling123).');
+    return;
+  }
+
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Menyimpan...';
+  }
+
+  try {
+    const res = await fetch('/api/auth/profile', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: state.operatorName || 'lingling',
+        display_name: displayName,
+        new_password: newPassword
+      })
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      showErr(data.error || 'Gagal menyimpan profil.');
+      return;
+    }
+
+    state.displayName = data.display_name || displayName;
+    sessionStorage.setItem('gl_display_name', state.displayName);
+    syncProfileHeaderUI();
+    updateDynamicGreeting();
+    closeProfileModal();
+    showToast(
+      data.password_changed ? 'Nama sapaan & password berhasil diperbarui!' : 'Nama sapaan berhasil diperbarui!',
+      'success'
+    );
+  } catch (err) {
+    showErr('Gagal menghubungi server.');
+  } finally {
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.textContent = 'Simpan Perubahan';
+    }
+  }
+}
+
 function handleLogout() {
+  const dd = document.getElementById('profile-dropdown');
+  if (dd) dd.classList.remove('open');
   sessionStorage.removeItem('gl_auth_session');
   sessionStorage.removeItem('gl_operator_name');
+  sessionStorage.removeItem('gl_display_name');
   state.sessionId = null;
   state.isAuthenticated = false;
   closeChatDrawer();
@@ -382,10 +512,10 @@ function handleLogout() {
 // ============================================================
 function updateDynamicGreeting() {
   const hour = new Date().getHours();
-  const opName = state.operatorName || 'Andrian';
+  const dName = state.displayName || state.operatorName || 'Kak Ling';
   let timeTag = 'Gudang Utama RT';
-  const title = `Halo ${opName} • Gudang Utama RT`;
-  let sub = 'Sistem inventaris & peminjaman perkakas warga mandiri. Cek fisik alat sebelum serah terima.';
+  const title = `Halo ${dName}, selamat datang kembali!`;
+  let sub = 'Pantau kesiapan alat, catat peminjaman warga, dan pastikan kondisi fisik tetap terawat.';
 
   if (hour >= 11 && hour < 15) {
     timeTag = 'Shift Siang • Operasional';

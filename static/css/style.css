@@ -2561,6 +2561,115 @@ html, body {
   color: var(--text-muted);
 }
 
+/* Profile Dropdown Menu in Header */
+.profile-menu-wrap {
+  position: relative;
+}
+
+.profile-menu-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px 4px 5px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-subtle);
+  border-radius: 20px;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.profile-menu-btn:hover {
+  border-color: var(--primary);
+  background: var(--primary-subtle);
+}
+
+.profile-avatar-dot {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.profile-short-name {
+  max-width: 78px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 420px) {
+  .profile-short-name {
+    display: none;
+  }
+}
+
+.profile-dropdown {
+  display: none;
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 205px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-mid);
+  border-radius: 12px;
+  padding: 6px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
+  z-index: 1000;
+  animation: fadeIn 0.15s ease-out;
+}
+
+.profile-dropdown.open {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.profile-drop-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 10px;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: 12.5px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.profile-drop-item:hover {
+  background: var(--bg-subtle);
+}
+
+.profile-drop-item.danger {
+  color: var(--red-text);
+}
+
+.profile-drop-item.danger:hover {
+  background: var(--red-bg);
+}
+
+.profile-drop-divider {
+  height: 1px;
+  background: var(--border-subtle);
+  margin: 4px 6px;
+}
+
 /* Animation */
 @keyframes slideUp {
   from { transform: translateY(20px); opacity: 0; }

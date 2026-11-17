@@ -98,16 +98,22 @@ def init_db():
         CREATE TABLE IF NOT EXISTS app_auth (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT UNIQUE NOT NULL,
+            display_name TEXT DEFAULT 'Kak Ling',
             password_hash TEXT NOT NULL,
             is_default_password INTEGER DEFAULT 1,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
         """)
+        cursor.execute("PRAGMA table_info(app_auth)")
+        auth_cols = [col[1] for col in cursor.fetchall()]
+        if "display_name" not in auth_cols:
+            cursor.execute("ALTER TABLE app_auth ADD COLUMN display_name TEXT DEFAULT 'Kak Ling'")
+
         cursor.execute("SELECT COUNT(*) FROM app_auth")
         if cursor.fetchone()[0] == 0:
             cursor.execute(
-                "INSERT INTO app_auth (username, password_hash, is_default_password) VALUES (?, ?, 1)",
-                ("lingling", _hash_pw("ling123"))
+                "INSERT INTO app_auth (username, display_name, password_hash, is_default_password) VALUES (?, ?, ?, 1)",
+                ("lingling", "Kak Ling", _hash_pw("ling123"))
             )
 
         conn.commit()
@@ -130,7 +136,7 @@ def verify_user_credentials(username: str, password: str) -> Optional[Dict[str, 
     pw_hash = _hash_pw(password or "")
     with get_connection() as conn:
         row = conn.execute(
-            "SELECT id, username, password_hash, is_default_password FROM app_auth WHERE LOWER(username) = ?",
+            "SELECT id, username, display_name, password_hash, is_default_password FROM app_auth WHERE LOWER(username) = ?",
             (uname,)
         ).fetchone()
         if not row or row["password_hash"] != pw_hash:
@@ -138,6 +144,7 @@ def verify_user_credentials(username: str, password: str) -> Optional[Dict[str, 
         return {
             "id": row["id"],
             "username": row["username"],
+            "display_name": row["display_name"] or row["username"],
             "is_default_password": bool(row["is_default_password"])
         }
 
@@ -152,6 +159,27 @@ def change_user_password(username: str, new_password: str) -> bool:
             "UPDATE app_auth SET password_hash = ?, is_default_password = 0, updated_at = CURRENT_TIMESTAMP WHERE LOWER(username) = ?",
             (_hash_pw(new_password), uname)
         )
+        conn.commit()
+        return cursor.rowcount > 0
+
+
+def update_user_profile(username: str, display_name: str, new_password: Optional[str] = None) -> bool:
+    """Memperbarui nama sapaan (display_name) dan opsional mengganti password."""
+    init_db()
+    uname = (username or "lingling").strip().lower()
+    dname = (display_name or "").strip() or "Kak Ling"
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        if new_password:
+            cursor.execute(
+                "UPDATE app_auth SET display_name = ?, password_hash = ?, is_default_password = 0, updated_at = CURRENT_TIMESTAMP WHERE LOWER(username) = ?",
+                (dname, _hash_pw(new_password), uname)
+            )
+        else:
+            cursor.execute(
+                "UPDATE app_auth SET display_name = ?, updated_at = CURRENT_TIMESTAMP WHERE LOWER(username) = ?",
+                (dname, uname)
+            )
         conn.commit()
         return cursor.rowcount > 0
 

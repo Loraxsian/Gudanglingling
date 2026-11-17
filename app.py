@@ -42,7 +42,8 @@ from database.db import (
     unlock_maintenance_item,
     get_auth_status,
     verify_user_credentials,
-    change_user_password
+    change_user_password,
+    update_user_profile
 )
 from database.seed import seed_database  # Hanya panggil init_db() — tidak insert data
 from engine.state_space import StateSpaceSession, CF_OPTIONS
@@ -307,6 +308,7 @@ class GudangLinglingRequestHandler(BaseHTTPRequestHandler):
                         "success": True,
                         "session_id": session_id,
                         "operator_name": user["username"],
+                        "display_name": user["display_name"],
                         "must_change_password": user["is_default_password"],
                         "message": "Login berhasil."
                     }, 200)
@@ -364,6 +366,36 @@ class GudangLinglingRequestHandler(BaseHTTPRequestHandler):
                     "success": True,
                     "is_default_password": False,
                     "message": "Password baru berhasil disimpan."
+                }, 200)
+            else:
+                self._send_json({"error": "Akun pengurus tidak ditemukan."}, 404)
+            return
+
+        # 1C. API: Perbarui Profil (Nama Sapaan & Password Opsional)
+        if path == "/api/auth/profile":
+            username = (body.get("username") or "lingling").strip()
+            display_name = (body.get("display_name") or "").strip()
+            new_password = (body.get("new_password") or "").strip()
+
+            if not display_name:
+                self._send_json({"error": "Nama sapaan tidak boleh kosong."}, 400)
+                return
+
+            if new_password:
+                if len(new_password) < 6:
+                    self._send_json({"error": "Password baru minimal 6 karakter."}, 400)
+                    return
+                if new_password.lower() == "ling123":
+                    self._send_json({"error": "Password baru tidak boleh sama dengan password default (ling123)."}, 400)
+                    return
+
+            ok = update_user_profile(username, display_name, new_password or None)
+            if ok:
+                self._send_json({
+                    "success": True,
+                    "display_name": display_name,
+                    "password_changed": bool(new_password),
+                    "message": "Profil & sapaan berhasil diperbarui."
                 }, 200)
             else:
                 self._send_json({"error": "Akun pengurus tidak ditemukan."}, 404)
