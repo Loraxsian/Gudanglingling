@@ -865,6 +865,18 @@ let wizardState = {
   photoUrl: ''
 };
 
+function getMaxBorrowDays(item) {
+  if (!item) return 3;
+  const cat = (item.category || '').trim();
+  const power = parseInt(item.power_watts || '0', 10);
+  const danger = (item.danger_level || 'SEDANG').toUpperCase();
+  const heavyCats = ['Pertukangan Listrik', 'Akses Ketinggian', 'Peralatan Air & Cuci'];
+  if (heavyCats.includes(cat) || power > 0 || danger === 'TINGGI' || danger === 'SANGAT TINGGI') {
+    return 3;
+  }
+  return 7;
+}
+
 function openBorrowWizard(itemId) {
   const item = state.items.find(i => i.id === itemId);
   if (!item) {
@@ -902,7 +914,15 @@ function openBorrowWizard(itemId) {
   const customWrap = document.getElementById('wizard-custom-days-wrap');
   if (customWrap) customWrap.style.display = 'none';
   const customInput = document.getElementById('wizard-custom-days-input');
-  if (customInput) customInput.value = '';
+  const maxDays = getMaxBorrowDays(item);
+  if (customInput) {
+    customInput.value = '';
+    customInput.max = String(maxDays);
+  }
+  const maxHint = document.getElementById('wizard-max-days-hint');
+  if (maxHint) {
+    maxHint.textContent = `Aturan AI: Batas maksimal untuk ${item.category} adalah ${maxDays} hari.`;
+  }
   document.getElementById('wizard-photo-file').value = '';
   const photoWrap = document.getElementById('wizard-photo-preview-wrap');
   if (photoWrap) photoWrap.style.display = 'none';
@@ -939,6 +959,8 @@ function goToWizardStep(stepNum) {
       return;
     }
     const daysEl = document.getElementById('wizard-borrow-days');
+    const selectedDays = getWizardBorrowDays();
+    const maxDays = getMaxBorrowDays(wizardState.item);
     if (daysEl.value === 'custom') {
       const customVal = parseInt(document.getElementById('wizard-custom-days-input').value || '0', 10);
       if (!customVal || customVal < 1) {
@@ -946,6 +968,10 @@ function goToWizardStep(stepNum) {
         document.getElementById('wizard-custom-days-input').focus();
         return;
       }
+    }
+    if (selectedDays > maxDays) {
+      showToast(`Aturan AI: Batas maksimal alat ini adalah ${maxDays} hari agar warga lain tetap kebagian.`, 'warn', 4500);
+      return;
     }
   }
 
@@ -1099,6 +1125,25 @@ async function submitBorrowWizard() {
   }
 }
 
+async function recordDigitalReceipt(recordId, itemName, borrowerName, borrowDays) {
+  try {
+    await fetch('/api/archive-receipt', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        record_id: recordId,
+        item_name: itemName,
+        borrower_name: borrowerName,
+        borrow_days: borrowDays
+      })
+    });
+    await loadEmailLogs();
+    renderMessage();
+  } catch (err) {
+    console.warn('Archive receipt log error:', err);
+  }
+}
+
 function renderWizardResultCard(data) {
   const card = document.getElementById('wizard-result-card');
   const waBtn = document.getElementById('wizard-btn-wa');
@@ -1153,6 +1198,12 @@ function renderWizardResultCard(data) {
     } else {
       waBtn.style.display = 'flex';
       waBtn.href = data.whatsapp_url;
+      waBtn.onclick = () => recordDigitalReceipt(
+        data.record_id,
+        data.item ? data.item.name : 'Peralatan',
+        document.getElementById('wizard-borrower-name').value.trim() || 'Warga',
+        getWizardBorrowDays()
+      );
     }
   }
 }
@@ -1964,7 +2015,7 @@ async function registerAndBorrowDirectly(toolName, category, photoUrl, borrowerN
           Peminjam: <strong>${esc(borrowerName)}</strong> (${borrowerPhone || 'Tanpa WA'})
         </div>
         <div style="display:flex;flex-direction:column;gap:6px;">
-          <a href="${borrowData.whatsapp_url}" target="_blank" class="btn-act btn-whatsapp-action btn-sm" style="text-decoration:none;display:flex;justify-content:center;align-items:center;gap:6px;">
+          <a href="${borrowData.whatsapp_url}" target="_blank" onclick="recordDigitalReceipt(${borrowData.record_id}, '${esc(toolName)}', '${esc(borrowerName)}', ${borrowDays})" class="btn-act btn-whatsapp-action btn-sm" style="text-decoration:none;display:flex;justify-content:center;align-items:center;gap:6px;">
             💬 Kirim Bukti ke WhatsApp
           </a>
           <button class="btn-act btn-subtle-action btn-sm" onclick="closeChatDrawer()">Tutup Asisten</button>
@@ -2054,7 +2105,7 @@ async function executeExpressBorrow(toolId, borrowerName, borrowerPhone, borrowD
           <strong>${esc(data.item.name)}</strong> resmi tercatat dipinjam oleh <strong>${esc(borrowerName)}</strong> selama <strong>${borrowDays} hari</strong>.
         </div>
         <div style="display:flex;flex-direction:column;gap:6px;margin-top:8px;">
-          <a href="${data.whatsapp_url}" target="_blank" class="btn-act btn-whatsapp-action btn-sm" style="text-decoration:none;display:flex;justify-content:center;align-items:center;gap:6px;">
+          <a href="${data.whatsapp_url}" target="_blank" onclick="recordDigitalReceipt(${data.record_id}, '${esc(data.item.name)}', '${esc(borrowerName)}', ${borrowDays})" class="btn-act btn-whatsapp-action btn-sm" style="text-decoration:none;display:flex;justify-content:center;align-items:center;gap:6px;">
             💬 Kirim Bukti ke WhatsApp
           </a>
           <button class="btn-act btn-subtle-action btn-sm" onclick="closeChatDrawer()">Tutup Asisten</button>
@@ -2147,6 +2198,22 @@ async function processUserChatMessage(rawText, photoBase64 = null) {
         if (tool.status === 'MAINTENANCE_LOCKED') {
           appendBotChat(`
             Peringatan Keselamatan: <strong>${esc(tool.name)}</strong> saat ini berstatus <strong>Karantina Servis (Lockout)</strong> dan belum boleh dipinjamkan demi keselamatan bersama.
+          `);
+          return;
+        }
+
+        const maxAllowed = getMaxBorrowDays(tool);
+        if (days > maxAllowed) {
+          appendBotChat(`
+            <div style="background:var(--yellow-bg);border:1px solid var(--yellow-border);border-radius:10px;padding:12px;">
+              <strong style="color:var(--yellow-text);font-size:12.5px;">⚠️ Aturan Sistem Pakar: Durasi Terlalu Lama</strong>
+              <p style="font-size:12px;color:var(--text-primary);margin:6px 0 10px;line-height:1.45;">
+                Untuk alat kategori <strong>${esc(tool.category)}</strong> (${esc(tool.name)}), batas maksimal peminjaman adalah <strong>${maxAllowed} hari</strong> agar warga lain tetap kebagian. Permintaan Anda: <strong>${days} hari</strong>.
+              </p>
+              <button class="btn-act btn-primary-action btn-sm" onclick="sendSuggestedQuery('${esc(name)} pinjam ${esc(tool.name)} ${maxAllowed} hari${phone ? ' wa ' + esc(phone) : ''}')">
+                ⚡ Sesuaikan Jadi ${maxAllowed} Hari
+              </button>
+            </div>
           `);
           return;
         }
@@ -2807,13 +2874,19 @@ function openReturnModalByItemId(itemId) {
 
 function openReturnModalByRecordId(recordId) {
   state.activeRecordToReturn = recordId;
+  state.returnPhotoUrl = '';
   const record = state.reminders.find(r => r.id === recordId);
   const initialImgEl = document.getElementById('comp-initial-img');
   const returnImgEl = document.getElementById('comp-return-img');
+  const confirmBtn = document.getElementById('btn-confirm-return');
 
   const photo = (record && record.initial_photo_url) ? record.initial_photo_url : '/img/bor.svg';
   initialImgEl.src = photo;
   returnImgEl.src = photo; // default placeholder
+
+  if (confirmBtn) {
+    confirmBtn.textContent = 'Ambil Foto Kondisi Akhir Dulu (*Wajib)';
+  }
 
   document.getElementById('return-modal-subtitle').textContent = record
     ? `Peminjam: ${record.borrower_name} • Alat: ${record.item_name}`
@@ -2827,6 +2900,11 @@ function openReturnModalByRecordId(recordId) {
     const file = e.target.files[0];
     if (!file) return;
 
+    if (confirmBtn) {
+      confirmBtn.disabled = true;
+      confirmBtn.textContent = 'Mengunggah Foto...';
+    }
+
     const reader = new FileReader();
     reader.onload = async function(evt) {
       const b64 = evt.target.result;
@@ -2839,17 +2917,26 @@ function openReturnModalByRecordId(recordId) {
           body: JSON.stringify({ image_data: b64 })
         });
         const data = await res.json();
-        if (data.success) {
+        if (data.success && data.url) {
           state.returnPhotoUrl = data.url;
+          if (confirmBtn) {
+            confirmBtn.disabled = false;
+            confirmBtn.textContent = 'Verifikasi & Selesaikan Pengembalian';
+          }
+          showToast('Foto kondisi akhir siap dibandingkan!', 'success');
         }
       } catch (err) {
         console.error('Error return photo upload:', err);
+        if (confirmBtn) {
+          confirmBtn.disabled = false;
+          confirmBtn.textContent = 'Verifikasi & Selesaikan Pengembalian';
+        }
       }
     };
     reader.readAsDataURL(file);
   };
 
-  document.getElementById('btn-confirm-return').onclick = submitReturnCheck;
+  if (confirmBtn) confirmBtn.onclick = submitReturnCheck;
 }
 
 function closeReturnModal() {
@@ -2860,6 +2947,12 @@ function closeReturnModal() {
 
 async function submitReturnCheck() {
   if (!state.activeRecordToReturn) return;
+  if (!state.returnPhotoUrl) {
+    showToast('Foto kondisi akhir alat wajib diunggah sebagai bukti perbandingan Sebelum vs Sesudah.', 'warn', 4000);
+    const camInput = document.getElementById('return-camera-input');
+    if (camInput) camInput.focus();
+    return;
+  }
 
   try {
     const res = await fetch('/api/borrow/return-check', {
@@ -2873,11 +2966,11 @@ async function submitReturnCheck() {
     const data = await res.json();
 
     if (res.ok) {
-      showToast('Pengembalian berhasil diverifikasi! Alat kembali tersedia di gudang.', 'success');
+      showToast('Pengembalian berhasil diverifikasi! Foto akhir tersimpan.', 'success');
       closeReturnModal();
       await loadAllData();
     } else {
-      showToast('Gagal menyelesaikan pengembalian.', 'warn');
+      showToast(data.error || 'Gagal menyelesaikan pengembalian.', 'warn');
     }
   } catch (err) {
     showToast('Koneksi server gagal.', 'warn');

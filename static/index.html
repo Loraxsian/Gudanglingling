@@ -8,7 +8,7 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32x32.png">
   <link rel="icon" type="image/png" sizes="64x64" href="/img/favicon-64x64.png">
   <link rel="apple-touch-icon" href="/img/logo-emblem.png">
-  <link rel="stylesheet" href="/css/style.css?v=6.0">
+  <link rel="stylesheet" href="/css/style.css?v=6.5">
 </head>
 <body>
 
@@ -697,7 +697,8 @@
             <option value="custom">Lainnya (Masukkan Jumlah Hari...)</option>
           </select>
           <div id="wizard-custom-days-wrap" style="display:none;margin-top:6px;">
-            <input type="number" id="wizard-custom-days-input" class="form-input" min="1" max="90" placeholder="Masukkan jumlah hari (maks. 90)">
+            <input type="number" id="wizard-custom-days-input" class="form-input" min="1" max="7" placeholder="Masukkan jumlah hari">
+            <div id="wizard-max-days-hint" style="font-size:11px;color:var(--text-muted);margin-top:4px;">Batas maksimal sesuai aturan alat: 3 hari (listrik/berat) atau 7 hari (manual).</div>
           </div>
         </div>
 
@@ -791,8 +792,9 @@
       </div>
 
       <div style="background:var(--bg-app);padding:10px;border-radius:6px;border:1px solid var(--border-subtle);">
-        <label class="form-label">Ambil Foto Fisik Alat Saat Ini (Kamera HP)</label>
-        <input type="file" id="return-camera-input" accept="image/*" capture="environment" class="form-input" style="padding-top:6px;">
+        <label class="form-label">Ambil Foto Fisik Alat Saat Ini (Kamera HP) <span style="color:var(--red-text);">* Wajib</span></label>
+        <input type="file" id="return-camera-input" accept="image/*" capture="environment" class="form-input" style="padding-top:6px;" required>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Foto kondisi akhir wajib diunggah untuk perbandingan transparan Sebelum vs Sesudah.</div>
       </div>
 
       <div style="display:flex;gap:8px;margin-top:6px;">
@@ -818,6 +820,6 @@
 <!-- ==================== TOAST NOTIFICATION CONTAINER ==================== -->
 <div class="app-toast" id="app-toast"></div>
 
-<script src="/js/app.js?v=6.0"></script>
+<script src="/js/app.js?v=6.5"></script>
 </body>
 </html>

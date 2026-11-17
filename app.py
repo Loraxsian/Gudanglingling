@@ -38,6 +38,7 @@ from database.db import (
     get_reminder_queue,
     get_borrowing_history,
     get_email_logs,
+    log_email_archive,
     unlock_maintenance_item
 )
 from database.seed import seed_database  # Hanya panggil init_db() — tidak insert data
@@ -53,6 +54,33 @@ ACTIVE_SESSIONS = {}
 LOGIN_ATTEMPTS = {}
 MAX_LOGIN_ATTEMPTS = 3
 LOCKOUT_SECONDS = 120
+
+
+def validate_borrow_duration(item, borrow_days: int):
+    """
+    Smart Rule Enforcement: Validasi batas maksimal durasi peminjaman
+    berdasarkan kategori, daya listrik, dan tingkat bahaya alat.
+    """
+    if borrow_days < 1:
+        return False, "Durasi peminjaman minimal adalah 1 hari.", 1
+
+    cat = (item.get("category") or "").strip()
+    power = int(item.get("power_watts") or 0)
+    danger = (item.get("danger_level") or "SEDANG").upper()
+
+    heavy_categories = {"Pertukangan Listrik", "Akses Ketinggian", "Peralatan Air & Cuci"}
+    if cat in heavy_categories or power > 0 or danger in ("TINGGI", "SANGAT TINGGI"):
+        max_days = 3
+    else:
+        max_days = 7
+
+    if borrow_days > max_days:
+        return (
+            False,
+            f"Aturan Sistem Pakar (Durasi Maksimal): Untuk alat kategori '{cat}', batas maksimal peminjaman adalah {max_days} hari agar warga lain tetap kebagian.",
+            max_days,
+        )
+    return True, "", max_days
 
 
 class ReusableThreadingServer(ThreadingHTTPServer):
@@ -334,6 +362,11 @@ class GudangLinglingRequestHandler(BaseHTTPRequestHandler):
                 }, 400)
                 return
 
+            dur_ok, dur_err, max_days = validate_borrow_duration(item, days)
+            if not dur_ok:
+                self._send_json({"error": dur_err, "max_days": max_days}, 400)
+                return
+
             session.start_assessment(item, borrower_name, borrower_phone, days)
             first_q = session.get_current_question()
             self._send_json({
@@ -367,6 +400,11 @@ class GudangLinglingRequestHandler(BaseHTTPRequestHandler):
                 self._send_json({
                     "error": "Alat ini sedang dalam status LOCKOUT (Karantina Perbaikan) dan tidak boleh dipinjamkan."
                 }, 400)
+                return
+
+            dur_ok, dur_err, max_days = validate_borrow_duration(item, days)
+            if not dur_ok:
+                self._send_json({"error": dur_err, "max_days": max_days}, 400)
                 return
 
             result = session.submit_batch_assessment(item, borrower_name, borrower_phone, days, facts)
@@ -471,6 +509,11 @@ class GudangLinglingRequestHandler(BaseHTTPRequestHandler):
                 self._send_json({"error": "Peralatan tidak ditemukan."}, 404)
                 return
 
+            dur_ok, dur_err, max_days = validate_borrow_duration(item, borrow_days)
+            if not dur_ok:
+                self._send_json({"error": dur_err, "max_days": max_days}, 400)
+                return
+
             # Evaluasi Sistem Pakar AI di latar belakang
             heuristic_res = HeuristicRiskEngine.evaluate_risk(facts_input)
             inference_res = ForwardChainingEngine.infer(facts_input)
@@ -544,12 +587,15 @@ class GudangLinglingRequestHandler(BaseHTTPRequestHandler):
             })
             return
 
-        # 7. API: Selesaikan Pengembalian dengan Cek Foto Kamera HP (Return Check)
+        # 7. API: Selesaikan Pengembalian dengan Cek Foto Kamera HP (Return Check - Wajib Foto)
         if path == "/api/borrow/return-check":
             record_id = body.get("record_id")
-            return_photo_url = body.get("return_photo_url", "")
+            return_photo_url = (body.get("return_photo_url") or "").strip()
             if not record_id:
                 self._send_json({"error": "record_id diperlukan"}, 400)
+                return
+            if not return_photo_url:
+                self._send_json({"error": "Foto kondisi akhir alat wajib diunggah sebelum menyelesaikan pengembalian."}, 400)
                 return
 
             success = complete_return_check(int(record_id), return_photo_url)
@@ -560,6 +606,21 @@ class GudangLinglingRequestHandler(BaseHTTPRequestHandler):
                 })
             else:
                 self._send_json({"error": "Gagal memproses pengembalian."}, 500)
+            return
+
+        # 7B. API: Catat Log Arsip Bukti Digital Permanen saat Kirim WhatsApp
+        if path == "/api/archive-receipt":
+            record_id = body.get("record_id")
+            item_name = (body.get("item_name") or "Peralatan").strip()
+            borrower_name = (body.get("borrower_name") or "Warga").strip()
+            borrow_days = int(body.get("borrow_days") or 1)
+            log_email_archive(
+                record_id=int(record_id) if record_id else None,
+                recipient="arsip-keluarga@gudanglingling.internal",
+                subject=f"Bukti WA Terkirim: {item_name} ({borrow_days} Hari) - {borrower_name}",
+                status="SAH • Arsip Digital Permanen"
+            )
+            self._send_json({"success": True, "message": "Bukti serah terima tercatat permanen di log arsip."})
             return
 
         # 8. API: Buka Kunci Alat Selesai Diservis (Unlock Maintenance)
