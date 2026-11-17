@@ -2049,12 +2049,12 @@ function parseNaturalBorrowQuery(text) {
   const lower = (text || '').toLowerCase().trim();
   if (!lower) return null;
 
-  // 1. Check for borrow or add intent keywords
-  const borrowKeywords = ['pinjam', 'minjam', 'meminjam', 'sewa', 'ambil', 'butuh', 'pakai', 'gunakan'];
-  const hasBorrow = borrowKeywords.some(kw => lower.includes(kw));
+  // 1. Check for borrow or add intent keywords (word-boundary safe so "peminjam" != "minjam")
+  const borrowWordRe = /\b(pinjam|minjam|meminjam|sewa|ambil|butuh|pakai|gunakan)\b/i;
+  const hasBorrow = borrowWordRe.test(lower);
 
-  const addKeywords = ['tambah', 'daftarkan', 'catat', 'masukkan', 'input'];
-  const hasAdd = addKeywords.some(kw => lower.includes(kw));
+  const addWordRe = /\b(tambah|daftarkan|catat|masukkan|input)\b/i;
+  const hasAdd = addWordRe.test(lower);
 
   if (!hasBorrow && !hasAdd) return null;
 
@@ -2681,14 +2681,13 @@ async function processUserChatMessage(rawText, photoBase64 = null) {
         const available = (state.items || []).filter(it => it.status === 'AVAILABLE');
         const listHtml = available.map(t => `
           <button class="chat-quick-btn" onclick="sendSuggestedQuery('${borrowIntent.rawText.replace(/pinjam/gi, '').trim()} pinjam ${t.name}')">
-            <span>&rsaquo;</span> Pinjam: ${esc(t.name)}
+            <span>🔘</span><span>${esc(t.name)}</span>
           </button>
         `).join('');
 
         appendBotChat(`
-          Terdeteksi permintaan peminjaman, namun nama alat belum teridentifikasi jelas.<br>
-          Pilih salah satu perkakas yang sedang tersedia:
-          <div style="display:flex;flex-direction:column;gap:5px;margin-top:8px;">
+          Nama alat belum spesifik. Pilih perkakas yang sedang ready:
+          <div class="chat-chip-row">
             ${listHtml || '<div style="font-size:11.5px;color:var(--text-muted);">Tidak ada alat ready saat ini.</div>'}
           </div>
         `);
@@ -2850,16 +2849,19 @@ async function processUserChatMessage(rawText, photoBase64 = null) {
 
     // 7. Fallback Cerdas
     appendBotChat(`
-      Saya siap membantu Anda. Untuk mempermudah, Anda dapat:<br>
-      <div style="display:flex;flex-direction:column;gap:5px;margin-top:6px;">
+      Saya siap membantu! Pilih salah satu topik cepat di bawah:
+      <div class="chat-chip-row">
         <button class="chat-quick-btn" onclick="sendSuggestedQuery('Alat apa saja yang sedang ready?')">
-          <span>&bull;</span> Cek Alat yang Ready Dipinjam
+          <span>📦</span><span>Alat Ready</span>
+        </button>
+        <button class="chat-quick-btn" onclick="handleChatQuickAction('history_7d')">
+          <span>📋</span><span>Riwayat 7 Hari</span>
         </button>
         <button class="chat-quick-btn" onclick="sendSuggestedQuery('Bagaimana aturan dan durasi pinjam?')">
-          <span>&bull;</span> Lihat Aturan &amp; Durasi Pinjam
+          <span>📜</span><span>Aturan Pinjam</span>
         </button>
         <button class="chat-quick-btn" onclick="sendSuggestedQuery('Jelaskan 3 Zona Triase Risiko AI')">
-          <span>&bull;</span> Pelajari Triase Risiko AI
+          <span>🛡️</span><span>Zona Triase</span>
         </button>
       </div>
     `);
