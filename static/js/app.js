@@ -128,6 +128,15 @@ function applyQuickKeyword(kw) {
   renderBeranda();
 }
 
+function resetSearchAndFilter() {
+  clearSearch();
+  state.activeCategory = 'ALL';
+  document.querySelectorAll('.cat-pill').forEach(p => {
+    p.classList.toggle('active', (p.dataset.cat || 'ALL') === 'ALL');
+  });
+  renderBeranda();
+}
+
 function setupNavigation() {
   const allNavButtons = document.querySelectorAll('[data-tab]');
 
@@ -396,12 +405,43 @@ function renderBeranda() {
     return matchSearch && matchCat;
   });
 
+  if (!state.items.length) {
+    container.innerHTML = `
+      <div class="empty-state-card">
+        <div class="empty-state-icon-wrap">
+          <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+            <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+            <line x1="12" y1="22.08" x2="12" y2="12"></line>
+          </svg>
+        </div>
+        <div class="empty-state-title">Gudang Masih Bersih & Siap Diisi</div>
+        <div class="empty-state-desc">
+          Belum ada perkakas di GudangLingling. Yuk, mulai catat alat pertamamu dengan menekan tombol <strong>+ Tambah Alat Baru</strong>!
+        </div>
+        <button class="btn-act btn-primary-action empty-state-cta" style="width:auto;" onclick="openAddItemModal()">
+          <span>+ Tambah Alat Baru</span>
+        </button>
+      </div>`;
+    return;
+  }
+
   if (!filtered.length) {
     container.innerHTML = `
-      <div style="grid-column:1/-1;text-align:center;padding:40px 20px;color:var(--text-muted);">
-        <div style="font-size:28px;margin-bottom:10px;">&#128269;</div>
-        <div style="font-weight:600;margin-bottom:4px;">Tidak ada peralatan ditemukan</div>
-        <div style="font-size:12px;">Coba ubah kata kunci atau pilih kategori yang berbeda.</div>
+      <div class="empty-state-card">
+        <div class="empty-state-icon-wrap" style="color:var(--text-muted);background:var(--bg-subtle);border-color:var(--border-subtle);">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+        </div>
+        <div class="empty-state-title">Tidak Ada Peralatan yang Sesuai</div>
+        <div class="empty-state-desc">
+          Tidak ditemukan peralatan dengan kata kunci <em>"${esc(searchVal)}"</em> pada kategori <em>"${esc(catVal === 'ALL' ? 'Semua Kategori' : catVal)}"</em>.
+        </div>
+        <button class="btn-act btn-subtle-action btn-sm" style="width:auto;padding:8px 18px;" onclick="resetSearchAndFilter()">
+          Reset Filter & Pencarian
+        </button>
       </div>`;
     return;
   }
