@@ -543,12 +543,17 @@
 
         <div style="margin-bottom:14px;">
           <label class="form-label">Durasi Peminjaman *</label>
-          <select id="wizard-borrow-days" class="form-select">
+          <select id="wizard-borrow-days" class="form-select" onchange="handleDurationChange(this)">
             <option value="1">1 Hari (Rekomendasi Pemakaian Standar)</option>
             <option value="2">2 Hari (Pekerjaan Bertahap)</option>
             <option value="3">3 Hari (Maksimal Standar Warga)</option>
             <option value="5">5 Hari (Perlu Izin Khusus Pengelola)</option>
+            <option value="7">7 Hari (1 Minggu)</option>
+            <option value="custom">Lainnya (Masukkan Jumlah Hari...)</option>
           </select>
+          <div id="wizard-custom-days-wrap" style="display:none;margin-top:6px;">
+            <input type="number" id="wizard-custom-days-input" class="form-input" min="1" max="90" placeholder="Masukkan jumlah hari (maks. 90)">
+          </div>
         </div>
 
         <div style="display:flex;gap:8px;margin-top:16px;">

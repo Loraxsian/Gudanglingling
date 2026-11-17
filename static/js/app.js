@@ -576,11 +576,14 @@ async function unlockTool(itemId) {
       body: JSON.stringify({ item_id: itemId })
     });
     if (res.ok) {
+      showToast('Alat berhasil dibuka kunci dan kembali tersedia.', 'success');
       await loadItems();
       renderBeranda();
+    } else {
+      showToast('Gagal membuka kunci alat.', 'warn');
     }
   } catch (err) {
-    alert('Gagal membuka kunci alat.');
+    showToast('Gagal menghubungi server.', 'warn');
   }
 }
 
@@ -747,6 +750,10 @@ function openBorrowWizard(itemId) {
   document.getElementById('wizard-borrower-name').value = '';
   document.getElementById('wizard-borrower-phone').value = '';
   document.getElementById('wizard-borrow-days').value = '1';
+  const customWrap = document.getElementById('wizard-custom-days-wrap');
+  if (customWrap) customWrap.style.display = 'none';
+  const customInput = document.getElementById('wizard-custom-days-input');
+  if (customInput) customInput.value = '';
   document.getElementById('wizard-photo-file').value = '';
   const photoWrap = document.getElementById('wizard-photo-preview-wrap');
   if (photoWrap) photoWrap.style.display = 'none';
@@ -781,6 +788,15 @@ function goToWizardStep(stepNum) {
       showToast('Mohon masukkan nama peminjam / tetangga.', 'warn');
       document.getElementById('wizard-borrower-name').focus();
       return;
+    }
+    const daysEl = document.getElementById('wizard-borrow-days');
+    if (daysEl.value === 'custom') {
+      const customVal = parseInt(document.getElementById('wizard-custom-days-input').value || '0', 10);
+      if (!customVal || customVal < 1) {
+        showToast('Masukkan jumlah hari peminjaman yang valid (minimal 1 hari).', 'warn');
+        document.getElementById('wizard-custom-days-input').focus();
+        return;
+      }
     }
   }
 
@@ -819,8 +835,8 @@ function previewWizardPhoto(e) {
         body: JSON.stringify({ image_data: evt.target.result })
       });
       const data = await res.json();
-      if (data.photo_url) {
-        wizardState.photoUrl = data.photo_url;
+      if (data.url) {
+        wizardState.photoUrl = data.url;
       }
     } catch (err) {
       console.warn('Gagal upload foto wizard:', err);
@@ -849,6 +865,27 @@ async function syncWizardContact() {
   }
 }
 
+function handleDurationChange(selectEl) {
+  const wrap = document.getElementById('wizard-custom-days-wrap');
+  const customInput = document.getElementById('wizard-custom-days-input');
+  if (selectEl.value === 'custom') {
+    if (wrap) wrap.style.display = 'block';
+    if (customInput) { customInput.value = ''; customInput.focus(); }
+  } else {
+    if (wrap) wrap.style.display = 'none';
+  }
+}
+
+function getWizardBorrowDays() {
+  const sel = document.getElementById('wizard-borrow-days');
+  if (!sel) return 1;
+  if (sel.value === 'custom') {
+    const customVal = parseInt(document.getElementById('wizard-custom-days-input').value || '1', 10);
+    return Math.max(1, Math.min(90, customVal || 1));
+  }
+  return parseInt(sel.value || '1', 10);
+}
+
 async function submitBorrowWizard() {
   const submitBtn = document.getElementById('btn-submit-wizard');
   if (submitBtn) {
@@ -858,7 +895,7 @@ async function submitBorrowWizard() {
 
   const name = document.getElementById('wizard-borrower-name').value.trim();
   const phone = document.getElementById('wizard-borrower-phone').value.trim();
-  const days = parseInt(document.getElementById('wizard-borrow-days').value || '1', 10);
+  const days = getWizardBorrowDays();
 
   const cableSafe = document.getElementById('wiz-check-cable').checked;
   const bodySafe = document.getElementById('wiz-check-body').checked;
@@ -923,21 +960,21 @@ function renderWizardResultCard(data) {
 
   let badgeColor = 'var(--green-text)';
   let zoneTitle = 'ZONA HIJAU — LAYAK DIPINJAMKAN LANGSUNG';
-  let iconBadge = '🟢';
+  let dotClass = 'green';
 
   if (zone === 'YELLOW') {
     badgeColor = 'var(--yellow-text)';
     zoneTitle = 'ZONA KUNING — PEMINJAMAN BERSYARAT (WAJIB APD)';
-    iconBadge = '🟡';
+    dotClass = 'yellow';
   } else if (zone === 'RED') {
     badgeColor = 'var(--red-text)';
     zoneTitle = 'ZONA MERAH — DITOLAK & DIKUNCI SERVIS';
-    iconBadge = '🔴';
+    dotClass = 'red';
   }
 
   card.innerHTML = `
     <div style="display:flex;align-items:center;gap:8px;font-weight:800;font-size:12.5px;color:${badgeColor};">
-      <span>${iconBadge}</span>
+      <span class="status-pulse-dot ${dotClass}" style="flex-shrink:0;position:static;"></span>
       <span>${zoneTitle}</span>
     </div>
 
@@ -1014,7 +1051,8 @@ async function handleCreateItem(e) {
   const fileInput = document.getElementById('add-item-file');
 
   if (!name) {
-    alert('Nama peralatan wajib diisi.');
+    showToast('Nama peralatan wajib diisi.', 'warn');
+    document.getElementById('add-item-name').focus();
     return;
   }
 
@@ -1035,8 +1073,8 @@ async function handleCreateItem(e) {
         body: JSON.stringify({ image_data: base64 })
       });
       const uploadData = await uploadRes.json();
-      if (uploadData.photo_url) {
-        photoUrl = uploadData.photo_url;
+      if (uploadData.url) {
+        photoUrl = uploadData.url;
       }
     } catch (err) {
       console.warn('Gagal upload gambar, menggunakan gambar ikon:', err);
@@ -1061,12 +1099,12 @@ async function handleCreateItem(e) {
       closeAddItemModal();
       await loadItems();
       renderBeranda();
-      alert('Peralatan berhasil ditambahkan ke inventaris!');
+      showToast('Peralatan berhasil ditambahkan ke inventaris!', 'success');
     } else {
-      alert(data.error || 'Gagal menambahkan peralatan.');
+      showToast(data.error || 'Gagal menambahkan peralatan.', 'warn');
     }
   } catch (err) {
-    alert('Gagal menghubungi server.');
+    showToast('Gagal menghubungi server.', 'warn');
   }
 }
 
@@ -1080,13 +1118,14 @@ async function handleDeleteItem(itemId) {
     });
     if (res.ok) {
       closeAssetDetailModal();
+      showToast('Peralatan berhasil dihapus dari inventaris.', 'success');
       await loadItems();
       renderBeranda();
     } else {
-      alert('Gagal menghapus peralatan.');
+      showToast('Gagal menghapus peralatan.', 'warn');
     }
   } catch (err) {
-    alert('Gagal menghubungi server.');
+    showToast('Gagal menghubungi server.', 'warn');
   }
 }
 
@@ -1233,9 +1272,9 @@ async function renderFaq() {
     data.rules.forEach(r => {
       const item = document.createElement('div');
       item.style.padding = '8px 0';
-      item.style.borderBottom = '1px solid rgba(255,255,255,0.06)';
+      item.style.borderBottom = '1px solid var(--border-subtle)';
       item.innerHTML = `
-        <div style="font-family:monospace;font-size:11.5px;color:#60a5fa;font-weight:bold;">${r.code} (CF Pakar: ${r.cf_pakar})</div>
+        <div style="font-family:monospace;font-size:11.5px;color:var(--primary);font-weight:bold;">${r.code} (CF Pakar: ${r.cf_pakar})</div>
         <div style="font-size:11.5px;color:var(--text-primary);margin-top:2px;">
           IF (${r.premises.length ? r.premises.join(` <strong>${r.operator}</strong> `) : 'Semua indikator normal'}) THEN <strong>${r.conclusion}</strong>
         </div>
@@ -1354,7 +1393,7 @@ async function verifyDrawerPin() {
       errEl.style.display = 'block';
     }
   } catch (err) {
-    alert('Koneksi server gagal.');
+    showToast('Koneksi server gagal. Periksa PIN dan coba lagi.', 'warn');
   }
 }
 
@@ -1694,7 +1733,7 @@ function renderChatResultCard(result) {
   appendBotChat(`
     <div style="background:var(--bg-surface);border:1px solid ${h.badge_color};border-radius:8px;padding:12px;margin-top:6px;">
       <span class="asset-badge ${zoneBadgeClass}" style="position:static;display:inline-block;margin-bottom:6px;">${h.zone_label}</span>
-      <div style="font-size:13.5px;font-weight:700;color:#fff;">${esc(dec ? dec.name : 'Layak Pakai Optimal')}</div>
+      <div style="font-size:13.5px;font-weight:700;color:var(--text-primary);">${esc(dec ? dec.name : 'Layak Pakai Optimal')}</div>
       <div style="font-size:11.5px;color:var(--text-secondary);margin:4px 0;">${esc(dec ? dec.description : '')}</div>
 
       <div style="display:flex;gap:8px;margin:8px 0;">
@@ -1738,7 +1777,7 @@ async function confirmChatTransaction() {
       await loadAllData();
     }
   } catch (err) {
-    alert('Gagal menyimpan transaksi.');
+    showToast('Gagal menyimpan transaksi.', 'warn');
   }
 }
 
@@ -1750,7 +1789,7 @@ function openReturnModalByItemId(itemId) {
   if (record) {
     openReturnModalByRecordId(record.id);
   } else {
-    alert('Tidak ditemukan data peminjaman aktif untuk alat ini.');
+    showToast('Tidak ditemukan data peminjaman aktif untuk alat ini.', 'warn');
   }
 }
 
@@ -1822,13 +1861,13 @@ async function submitReturnCheck() {
     const data = await res.json();
 
     if (res.ok) {
-      alert('Pengembalian berhasil diverifikasi! Alat kembali tersedia di gudang.');
+      showToast('Pengembalian berhasil diverifikasi! Alat kembali tersedia di gudang.', 'success');
       closeReturnModal();
       await loadAllData();
     } else {
-      alert('Gagal menyelesaikan pengembalian.');
+      showToast('Gagal menyelesaikan pengembalian.', 'warn');
     }
   } catch (err) {
-    alert('Koneksi server gagal.');
+    showToast('Koneksi server gagal.', 'warn');
   }
 }
