@@ -496,7 +496,7 @@ function renderBeranda() {
     } else if (isBorrowed) {
       actionBtn = `<button class="btn-act btn-subtle-action btn-sm" onclick="openReturnModalByItemId(${it.id})">Selesaikan Pengembalian</button>`;
     } else {
-      actionBtn = `<button class="btn-act btn-primary-action btn-sm" onclick="openChatWithItem(${it.id})">Pinjam Cepat</button>`;
+      actionBtn = `<button class="btn-act btn-primary-action btn-sm" onclick="openBorrowWizard(${it.id})">Pinjam Cepat</button>`;
     }
 
     // --- Health / Risk Gauge ---
@@ -689,7 +689,7 @@ function renderAssetDetailContent(item, records, body) {
 
       <div style="display:flex;gap:8px;margin-top:6px;">
         ${item.status === 'AVAILABLE' ? `
-        <button class="btn-act btn-primary-action" onclick="closeAssetDetailModal(); openChatWithItem(${item.id});">
+        <button class="btn-act btn-primary-action" onclick="closeAssetDetailModal(); openBorrowWizard(${item.id});">
           Pinjam Alat Ini Sekarang
         </button>` : ''}
         <button class="btn-act btn-danger-action btn-sm" style="width:auto;" onclick="handleDeleteItem(${item.id})">Hapus Alat</button>
@@ -701,6 +701,274 @@ function renderAssetDetailContent(item, records, body) {
 function closeAssetDetailModal() {
   const modal = document.getElementById('modal-asset-detail');
   if (modal) modal.classList.remove('open');
+}
+
+// ============================================================
+// 4B. SMART BORROWING WIZARD MODAL (3 LANGKAH)
+// ============================================================
+let wizardState = {
+  itemId: null,
+  item: null,
+  currentStep: 1,
+  photoUrl: ''
+};
+
+function openBorrowWizard(itemId) {
+  const item = state.items.find(i => i.id === itemId);
+  if (!item) {
+    showToast('Peralatan tidak ditemukan.', 'warn');
+    return;
+  }
+  if (item.status === 'BORROWED') {
+    showToast('Alat ini sedang dipinjam warga.', 'warn');
+    return;
+  }
+  if (item.status === 'MAINTENANCE_LOCKED') {
+    showToast('Alat ini sedang dikunci karantina servis.', 'warn');
+    return;
+  }
+
+  wizardState = {
+    itemId: item.id,
+    item: item,
+    currentStep: 1,
+    photoUrl: item.last_photo_url || ''
+  };
+
+  // Populate header banner
+  const imgEl = document.getElementById('wizard-tool-img');
+  const nameEl = document.getElementById('wizard-tool-name');
+  const metaEl = document.getElementById('wizard-tool-meta');
+  if (imgEl) imgEl.src = item.last_photo_url || '/img/bor.svg';
+  if (nameEl) nameEl.textContent = item.name;
+  if (metaEl) metaEl.textContent = `${item.category} • ${item.power_watts ? item.power_watts + 'W' : 'Non-Listrik'}`;
+
+  // Reset form inputs
+  document.getElementById('wizard-borrower-name').value = '';
+  document.getElementById('wizard-borrower-phone').value = '';
+  document.getElementById('wizard-borrow-days').value = '1';
+  document.getElementById('wizard-photo-file').value = '';
+  const photoWrap = document.getElementById('wizard-photo-preview-wrap');
+  if (photoWrap) photoWrap.style.display = 'none';
+
+  // Checkboxes
+  document.getElementById('wiz-check-cable').checked = true;
+  document.getElementById('wiz-check-body').checked = true;
+  document.getElementById('wiz-check-experience').checked = true;
+  document.getElementById('wiz-check-spark').checked = false;
+
+  goToWizardStep(1);
+
+  const modal = document.getElementById('modal-borrow-wizard');
+  if (modal) modal.classList.add('open');
+}
+
+function closeBorrowWizard() {
+  const modal = document.getElementById('modal-borrow-wizard');
+  if (modal) modal.classList.remove('open');
+}
+
+function finishBorrowWizard() {
+  closeBorrowWizard();
+  loadAllData();
+  showToast('Peminjaman berhasil disimpan ke inventaris!', 'success');
+}
+
+function goToWizardStep(stepNum) {
+  if (stepNum === 2) {
+    const name = document.getElementById('wizard-borrower-name').value.trim();
+    if (!name) {
+      showToast('Mohon masukkan nama peminjam / tetangga.', 'warn');
+      document.getElementById('wizard-borrower-name').focus();
+      return;
+    }
+  }
+
+  wizardState.currentStep = stepNum;
+
+  // Update stepper pills & panes
+  for (let i = 1; i <= 3; i++) {
+    const pill = document.getElementById(`wizard-step-pill-${i}`);
+    if (pill) {
+      pill.classList.toggle('active', i === stepNum);
+      pill.classList.toggle('completed', i < stepNum);
+    }
+    const pane = document.getElementById(`wizard-step-${i}`);
+    if (pane) {
+      pane.classList.toggle('active', i === stepNum);
+    }
+  }
+}
+
+function previewWizardPhoto(e) {
+  const file = e.target.files && e.target.files[0];
+  const wrap = document.getElementById('wizard-photo-preview-wrap');
+  const img = document.getElementById('wizard-photo-preview-img');
+  if (!file || !wrap || !img) return;
+
+  const reader = new FileReader();
+  reader.onload = async function(evt) {
+    img.src = evt.target.result;
+    wrap.style.display = 'block';
+
+    // Upload photo to backend
+    try {
+      const res = await fetch('/api/upload-photo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image_data: evt.target.result })
+      });
+      const data = await res.json();
+      if (data.photo_url) {
+        wizardState.photoUrl = data.photo_url;
+      }
+    } catch (err) {
+      console.warn('Gagal upload foto wizard:', err);
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
+async function syncWizardContact() {
+  if ('contacts' in navigator && 'ContactsManager' in window) {
+    try {
+      const contacts = await navigator.contacts.select(['name', 'tel'], { multiple: false });
+      if (contacts && contacts.length > 0) {
+        const contact = contacts[0];
+        const name = contact.name ? contact.name[0] : '';
+        const tel = contact.tel ? contact.tel[0] : '';
+        if (name) document.getElementById('wizard-borrower-name').value = name;
+        if (tel) document.getElementById('wizard-borrower-phone').value = tel;
+        showToast(`Kontak disematkan: ${name}`, 'success');
+      }
+    } catch (e) {
+      console.log('Cancel sync wizard contact:', e);
+    }
+  } else {
+    showToast('Sinkron kontak aktif di Chrome Android. Di laptop, masukkan nama & nomor langsung.', 'info', 4000);
+  }
+}
+
+async function submitBorrowWizard() {
+  const submitBtn = document.getElementById('btn-submit-wizard');
+  if (submitBtn) {
+    submitBtn.textContent = 'Menganalisis Triase AI...';
+    submitBtn.disabled = true;
+  }
+
+  const name = document.getElementById('wizard-borrower-name').value.trim();
+  const phone = document.getElementById('wizard-borrower-phone').value.trim();
+  const days = parseInt(document.getElementById('wizard-borrow-days').value || '1', 10);
+
+  const cableSafe = document.getElementById('wiz-check-cable').checked;
+  const bodySafe = document.getElementById('wiz-check-body').checked;
+  const expSafe = document.getElementById('wiz-check-experience').checked;
+  const sparkReport = document.getElementById('wiz-check-spark').checked;
+
+  // Convert safety checklist to facts input for AI Expert System
+  const factsInput = {};
+  if (!cableSafe) factsInput['F01'] = 0.8; // Kabel terkelupas
+  if (!bodySafe) factsInput['F02'] = 0.7;  // Bodi retak
+  if (!expSafe) factsInput['F13'] = 0.6;   // Peminjam pemula
+  if (sparkReport) {
+    factsInput['F05'] = 0.9; // Percikan api / korsleting fatal
+  }
+
+  try {
+    const res = await fetch('/api/borrow/wizard', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        item_id: wizardState.itemId,
+        borrower_name: name,
+        borrower_phone: phone,
+        borrow_days: days,
+        photo_url: wizardState.photoUrl,
+        facts: factsInput
+      })
+    });
+
+    const data = await res.json();
+    if (!data.success) {
+      showToast(data.error || 'Gagal memproses triase peminjaman.', 'warn');
+      if (submitBtn) {
+        submitBtn.textContent = 'Proses Triase & Catat Pinjam →';
+        submitBtn.disabled = false;
+      }
+      return;
+    }
+
+    // Render Step 3 Result Card
+    renderWizardResultCard(data);
+    goToWizardStep(3);
+    loadAllData();
+  } catch (err) {
+    console.error('Error submit borrow wizard:', err);
+    showToast('Terjadi gangguan jaringan saat memproses triase.', 'warn');
+  } finally {
+    if (submitBtn) {
+      submitBtn.textContent = 'Proses Triase & Catat Pinjam →';
+      submitBtn.disabled = false;
+    }
+  }
+}
+
+function renderWizardResultCard(data) {
+  const card = document.getElementById('wizard-result-card');
+  const waBtn = document.getElementById('wizard-btn-wa');
+  if (!card) return;
+
+  const zone = data.zone || 'GREEN';
+  card.className = `wizard-result-card ${zone}`;
+
+  let badgeColor = 'var(--green-text)';
+  let zoneTitle = 'ZONA HIJAU — LAYAK DIPINJAMKAN LANGSUNG';
+  let iconBadge = '🟢';
+
+  if (zone === 'YELLOW') {
+    badgeColor = 'var(--yellow-text)';
+    zoneTitle = 'ZONA KUNING — PEMINJAMAN BERSYARAT (WAJIB APD)';
+    iconBadge = '🟡';
+  } else if (zone === 'RED') {
+    badgeColor = 'var(--red-text)';
+    zoneTitle = 'ZONA MERAH — DITOLAK & DIKUNCI SERVIS';
+    iconBadge = '🔴';
+  }
+
+  card.innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;font-weight:800;font-size:12.5px;color:${badgeColor};">
+      <span>${iconBadge}</span>
+      <span>${zoneTitle}</span>
+    </div>
+
+    <div style="font-size:14px;font-weight:700;color:var(--text-primary);margin-top:2px;">
+      Keputusan: ${esc(data.decision_name)}
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px;">
+      <div style="background:var(--bg-surface);padding:8px;border-radius:6px;border:1px solid var(--border-subtle);text-align:center;">
+        <div style="font-size:10.5px;color:var(--text-secondary);font-weight:600;">Skor Risiko h(S)</div>
+        <div style="font-size:16px;font-weight:800;color:${badgeColor};">${data.heuristic_score} / 100</div>
+      </div>
+      <div style="background:var(--bg-surface);padding:8px;border-radius:6px;border:1px solid var(--border-subtle);text-align:center;">
+        <div style="font-size:10.5px;color:var(--text-secondary);font-weight:600;">Keyakinan AI (CF)</div>
+        <div style="font-size:16px;font-weight:800;color:var(--primary);">${data.cf_percentage}%</div>
+      </div>
+    </div>
+
+    <div style="font-size:12px;color:var(--text-secondary);line-height:1.45;background:var(--bg-surface);padding:8px 10px;border-radius:6px;border:1px solid var(--border-subtle);margin-top:2px;">
+      <strong>Instruksi Keselamatan:</strong> ${esc(data.safety_advice || 'Gunakan alat sesuai petunjuk keselamatan warga.')}
+    </div>
+  `;
+
+  if (waBtn) {
+    if (zone === 'RED') {
+      waBtn.style.display = 'none';
+    } else {
+      waBtn.style.display = 'flex';
+      waBtn.href = data.whatsapp_url;
+    }
+  }
 }
 
 // ============================================================
@@ -1136,6 +1404,7 @@ function handleChatQuickAction(action) {
     }, 400);
   } else if (action === 'borrow_tool') {
     appendUserChat('Pinjam Alat');
+    const available = state.items.filter(it => it.status === 'AVAILABLE');
     if (!state.items.length) {
       appendBotChat(`
         Belum ada peralatan di inventaris gudang.<br>
@@ -1144,8 +1413,18 @@ function handleChatQuickAction(action) {
           <button class="btn-act btn-primary-action btn-sm" onclick="closeChatDrawer(); openAddItemModal();">+ Tambah Alat Sekarang</button>
         </div>
       `);
+    } else if (!available.length) {
+      appendBotChat('Saat ini semua perkakas sedang dipinjam atau dalam servis.');
     } else {
-      showItemAndPhotoStep();
+      const toolBtns = available.map(t => `
+        <button class="btn-act btn-primary-action btn-sm" style="margin-top:5px;display:block;width:100%;text-align:left;" onclick="closeChatDrawer(); openBorrowWizard(${t.id});">
+          Pinjam: ${esc(t.name)} (${esc(t.category)})
+        </button>
+      `).join('');
+      appendBotChat(`
+        Pilih alat yang ingin Anda pinjam untuk membuka <strong>Formulir Pinjam Cepat (Smart Wizard 3 Langkah)</strong>:
+        <div style="margin-top:8px;">${toolBtns}</div>
+      `);
     }
   } else if (action === 'check_borrowers') {
     appendUserChat('Cek Antrean Peminjam');

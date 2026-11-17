@@ -103,6 +103,23 @@ class TestAPIEndpoints(unittest.TestCase):
         self.assertEqual(len(data["facts"]), 20)
         self.assertEqual(len(data["rules"]), 15)
 
+    def test_05_borrow_wizard_endpoint(self):
+        url = f"http://127.0.0.1:{TEST_PORT}/api/borrow/wizard"
+        payload = json.dumps({
+            "item_id": 1,
+            "borrower_name": "Pak Budi",
+            "borrower_phone": "08123456789",
+            "borrow_days": 1,
+            "facts": {}
+        }).encode("utf-8")
+        req = request.Request(url, data=payload, headers={"Content-Type": "application/json"})
+        resp = request.urlopen(req)
+        self.assertEqual(resp.status, 200)
+        data = json.loads(resp.read().decode("utf-8"))
+        self.assertTrue(data["success"])
+        self.assertEqual(data["zone"], "GREEN")
+        self.assertIn("whatsapp_url", data)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1647,6 +1647,137 @@ html, body {
   font-size: 12px;
 }
 
+/* ============================================================
+   SMART BORROWING WIZARD MODAL (3 LANGKAH)
+   ============================================================ */
+.wizard-step-bar {
+  display: flex;
+  background: var(--bg-app);
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 6px 14px;
+  gap: 8px;
+}
+
+.wizard-step-item {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+  padding: 6px 4px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.wizard-step-item.active {
+  color: var(--primary);
+  background: var(--primary-subtle);
+  font-weight: 700;
+}
+
+.wizard-step-item.completed {
+  color: var(--green-text);
+}
+
+.wizard-step-item .step-num {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-subtle);
+  font-size: 10.5px;
+  font-weight: 800;
+}
+
+.wizard-step-item.active .step-num {
+  background: var(--primary);
+  color: #ffffff;
+}
+
+.wizard-step-item.completed .step-num {
+  background: var(--green);
+  color: #ffffff;
+}
+
+.wizard-tool-banner {
+  background: var(--bg-app);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  margin-bottom: 4px;
+}
+
+.wizard-step-pane {
+  display: none;
+  flex-direction: column;
+}
+
+.wizard-step-pane.active {
+  display: flex;
+  animation: slideUp 0.2s ease-out;
+}
+
+.wizard-checklist {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--bg-app);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 10px;
+}
+
+.wizard-check-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.wizard-check-item input[type="checkbox"] {
+  margin-top: 2px;
+  accent-color: var(--primary);
+}
+
+.wizard-check-item.danger-check {
+  color: var(--red-text);
+  font-weight: 600;
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 6px;
+}
+
+.wizard-result-card {
+  padding: 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.wizard-result-card.GREEN {
+  background: var(--green-bg);
+  border-color: var(--green-border);
+}
+
+.wizard-result-card.YELLOW {
+  background: var(--yellow-bg);
+  border-color: var(--yellow-border);
+}
+
+.wizard-result-card.RED {
+  background: var(--red-bg);
+  border-color: var(--red-border);
+}
+
 /* Toast Notification System */
 .app-toast {
   position: fixed;

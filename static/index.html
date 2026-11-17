@@ -487,6 +487,136 @@
   </div>
 </div>
 
+<!-- ==================== SMART BORROWING WIZARD MODAL (3 LANGKAH) ==================== -->
+<div class="modal-overlay" id="modal-borrow-wizard">
+  <div class="modal-dialog" style="max-width:480px;">
+    <div class="modal-dialog-header">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <img src="/img/logo-emblem.png" alt="Logo" style="width:20px;height:20px;object-fit:contain;">
+        <strong style="font-size:14px;">Formulir Pinjam Cepat (Smart Wizard)</strong>
+      </div>
+      <button class="btn-drawer" onclick="closeBorrowWizard()">&times;</button>
+    </div>
+
+    <!-- Stepper Navigation Indicator -->
+    <div class="wizard-step-bar">
+      <div class="wizard-step-item active" id="wizard-step-pill-1">
+        <span class="step-num">1</span> Identitas
+      </div>
+      <div class="wizard-step-item" id="wizard-step-pill-2">
+        <span class="step-num">2</span> Cek Fisik
+      </div>
+      <div class="wizard-step-item" id="wizard-step-pill-3">
+        <span class="step-num">3</span> Hasil Triase
+      </div>
+    </div>
+
+    <div class="modal-dialog-body" style="padding-top:10px;">
+
+      <!-- Selected Tool Quick Banner -->
+      <div class="wizard-tool-banner" id="wizard-tool-banner">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <img id="wizard-tool-img" src="/img/bor.svg" alt="Alat" style="width:44px;height:44px;object-fit:cover;border-radius:8px;background:var(--bg-app);border:1px solid var(--border-subtle);">
+          <div>
+            <div id="wizard-tool-name" style="font-weight:700;font-size:13.5px;color:var(--text-primary);">Nama Alat</div>
+            <div id="wizard-tool-meta" style="font-size:11.5px;color:var(--text-secondary);">Kategori &bull; 0W</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== LANGKAH 1: DATA PEMINJAM ==================== -->
+      <div class="wizard-step-pane active" id="wizard-step-1">
+        <div style="margin-bottom:12px;">
+          <label class="form-label">Nama Peminjam / Tetangga *</label>
+          <input type="text" id="wizard-borrower-name" class="form-input" placeholder="Contoh: Pak Budi / Bu Siti" required>
+        </div>
+
+        <div style="margin-bottom:12px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+            <label class="form-label" style="margin-bottom:0;">No. WhatsApp Peminjam</label>
+            <button type="button" class="btn-sm" style="background:transparent;border:none;color:var(--primary);cursor:pointer;font-size:11.5px;font-weight:600;" onclick="syncWizardContact()">
+              Sinkron Kontak HP
+            </button>
+          </div>
+          <input type="tel" id="wizard-borrower-phone" class="form-input" placeholder="Contoh: 08123456789">
+        </div>
+
+        <div style="margin-bottom:14px;">
+          <label class="form-label">Durasi Peminjaman *</label>
+          <select id="wizard-borrow-days" class="form-select">
+            <option value="1">1 Hari (Rekomendasi Pemakaian Standar)</option>
+            <option value="2">2 Hari (Pekerjaan Bertahap)</option>
+            <option value="3">3 Hari (Maksimal Standar Warga)</option>
+            <option value="5">5 Hari (Perlu Izin Khusus Pengelola)</option>
+          </select>
+        </div>
+
+        <div style="display:flex;gap:8px;margin-top:16px;">
+          <button type="button" class="btn-act btn-primary-action" onclick="goToWizardStep(2)">
+            Lanjut: Cek Fisik Alat &rarr;
+          </button>
+          <button type="button" class="btn-act btn-subtle-action" onclick="closeBorrowWizard()">Batal</button>
+        </div>
+      </div>
+
+      <!-- ==================== LANGKAH 2: CEK KONDISI FISIK & FOTO ==================== -->
+      <div class="wizard-step-pane" id="wizard-step-2">
+        <div style="margin-bottom:12px;">
+          <label class="form-label">Foto Kondisi Fisik Alat (Kamera / File)</label>
+          <input type="file" id="wizard-photo-file" accept="image/*" capture="environment" class="form-input" style="padding-top:6px;" onchange="previewWizardPhoto(event)">
+          <div id="wizard-photo-preview-wrap" style="display:none;margin-top:8px;border-radius:8px;overflow:hidden;background:var(--bg-subtle);border:1px solid var(--border-subtle);">
+            <img id="wizard-photo-preview-img" src="" alt="Pratinjau" style="width:100%;height:130px;object-fit:cover;display:block;">
+          </div>
+        </div>
+
+        <label class="form-label" style="margin-bottom:6px;">Pemeriksaan Cepat Keselamatan Warga (1-Klik)</label>
+        <div class="wizard-checklist">
+          <label class="wizard-check-item">
+            <input type="checkbox" id="wiz-check-cable" checked>
+            <span>Kabel, steker, & selubung isolator aman (tidak ada luka/kawat telanjang)</span>
+          </label>
+          <label class="wizard-check-item">
+            <input type="checkbox" id="wiz-check-body" checked>
+            <span>Bodi alat, gagang, dan pengunci kokoh (tidak retak / goyang)</span>
+          </label>
+          <label class="wizard-check-item">
+            <input type="checkbox" id="wiz-check-experience" checked>
+            <span>Peminjam dewasa & memahami cara pengoperasian alat</span>
+          </label>
+          <label class="wizard-check-item danger-check">
+            <input type="checkbox" id="wiz-check-spark">
+            <span>PERINGATAN: Tercium bau hangus / percikan api / bodi nyetrum saat terakhir diuji</span>
+          </label>
+        </div>
+
+        <div style="display:flex;gap:8px;margin-top:16px;">
+          <button type="button" class="btn-act btn-primary-action" id="btn-submit-wizard" onclick="submitBorrowWizard()">
+            Proses Triase & Catat Pinjam &rarr;
+          </button>
+          <button type="button" class="btn-act btn-subtle-action" onclick="goToWizardStep(1)">&larr; Kembali</button>
+        </div>
+      </div>
+
+      <!-- ==================== LANGKAH 3: HASIL TRIASE & WA ACTION ==================== -->
+      <div class="wizard-step-pane" id="wizard-step-3">
+        <div id="wizard-result-card" class="wizard-result-card">
+          <!-- Injected dynamically by JS -->
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:14px;">
+          <a id="wizard-btn-wa" href="#" target="_blank" class="btn-act btn-whatsapp-action" style="display:flex;justify-content:center;align-items:center;gap:6px;text-decoration:none;">
+            Kirim Bukti Peminjaman ke WhatsApp
+          </a>
+          <button type="button" class="btn-act btn-primary-action" onclick="finishBorrowWizard()">
+            Selesai & Tutup Formulir
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
 <!-- ==================== SIDE-BY-SIDE RETURN PHOTO CHECK MODAL ==================== -->
 <div class="modal-overlay" id="modal-return-check">
   <div class="modal-dialog">

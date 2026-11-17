@@ -16,7 +16,7 @@ import base64
 import mimetypes
 from pathlib import Path
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
-from urllib.parse import urlparse
+from urllib.parse import urlparse, quote
 
 # Pastikan root direktori masuk ke path
 BASE_DIR = Path(__file__).resolve().parent
@@ -42,6 +42,8 @@ from database.db import (
 from database.seed import seed_database  # Hanya panggil init_db() — tidak insert data
 from engine.state_space import StateSpaceSession, CF_OPTIONS
 from engine.knowledge_base import FACTS, DECISIONS, RULES
+from engine.forward_chaining import ForwardChainingEngine
+from engine.heuristic_risk import HeuristicRiskEngine
 
 # Sesi percakapan aktif yang disimpan di memori
 ACTIVE_SESSIONS = {}
@@ -409,6 +411,97 @@ class GudangLinglingRequestHandler(BaseHTTPRequestHandler):
                 "record_id": rec_id,
                 "record_status": record_status,
                 "message": "Peminjaman dicatat & status inventaris berhasil diperbarui."
+            })
+            return
+
+        # 6B. API: Smart Borrowing Wizard (Modal 3 Langkah Cepat & Bersih)
+        if path == "/api/borrow/wizard":
+            item_id = body.get("item_id")
+            borrower_name = (body.get("borrower_name") or "").strip()
+            borrower_phone = (body.get("borrower_phone") or "").strip()
+            borrow_days = int(body.get("borrow_days") or 1)
+            photo_url = body.get("photo_url", "")
+            facts_input = body.get("facts", {})
+
+            if not item_id or not borrower_name:
+                self._send_json({"error": "Peralatan dan Nama Peminjam wajib diisi."}, 400)
+                return
+
+            item = get_item_by_id(int(item_id))
+            if not item:
+                self._send_json({"error": "Peralatan tidak ditemukan."}, 404)
+                return
+
+            # Evaluasi Sistem Pakar AI di latar belakang
+            heuristic_res = HeuristicRiskEngine.evaluate_risk(facts_input)
+            inference_res = ForwardChainingEngine.infer(facts_input)
+
+            zone = heuristic_res["zone"]
+            h_score = heuristic_res["heuristic_score"]
+            primary_dec = inference_res.get("primary_decision")
+
+            decision_code = primary_dec["code"] if primary_dec else "K01"
+            decision_name = primary_dec["name"] if primary_dec else "Layak Pakai Optimal"
+            cf_percent = primary_dec["percentage"] if primary_dec else 95.0
+
+            if zone == "RED":
+                update_item_status(item_id, "MAINTENANCE_LOCKED", photo_url or item.get("last_photo_url", ""))
+                record_status = "REJECTED_LOCKOUT"
+            else:
+                update_item_status(item_id, "BORROWED", photo_url or item.get("last_photo_url", ""))
+                record_status = "ACTIVE"
+
+            record_data = {
+                "item_id": item_id,
+                "borrower_name": borrower_name,
+                "borrower_phone": borrower_phone,
+                "borrow_days": borrow_days,
+                "status": record_status,
+                "decision_code": decision_code,
+                "decision_name": decision_name,
+                "zone": zone,
+                "heuristic_score": h_score,
+                "cf_percentage": cf_percent,
+                "facts": facts_input,
+                "initial_photo_url": photo_url or item.get("last_photo_url", "")
+            }
+
+            rec_id = save_borrowing_record(record_data)
+
+            # Buat teks WhatsApp otomatis ramah warga
+            clean_phone = "".join(filter(str.isdigit, borrower_phone))
+            if clean_phone.startswith("0"):
+                clean_phone = "62" + clean_phone[1:]
+
+            wa_msg = f"*--- NOTIFIKASI GUDANGLINGLING AI ---*\n"
+            wa_msg += f"Halo *{borrower_name}*,\n"
+            wa_msg += f"Pengecekan teknis dan triase keamanan untuk peminjaman *{item['name']}* telah selesai diproses oleh Sistem Pakar GudangLingling AI.\n\n"
+            wa_msg += f"*Status Triase Keselamatan:*\n"
+            wa_msg += f"- Keputusan: {decision_name}\n"
+            wa_msg += f"- Zonasi: {heuristic_res.get('zone_label', zone)}\n"
+            wa_msg += f"- Skor Risiko h(S): {h_score}/100\n"
+            wa_msg += f"- Keyakinan AI (Certainty Factor): {cf_percent}%\n\n"
+            wa_msg += f"*Instruksi Keselamatan:* {heuristic_res.get('safety_advice', 'Alat aman digunakan.')}\n"
+            wa_msg += f"*Durasi Pinjam:* {borrow_days} Hari\n"
+            wa_msg += f"Mohon rawat alat dengan baik dan kembalikan tepat waktu demi kenyamanan bersama.\n\n"
+            wa_msg += f"_Sistem Cerdas GudangLingling — Pengembang: Liana Sry Astuti (ITEBA)_"
+
+            encoded_wa = quote(wa_msg)
+            wa_url = f"https://wa.me/{clean_phone}?text={encoded_wa}" if clean_phone else f"https://wa.me/?text={encoded_wa}"
+
+            self._send_json({
+                "success": True,
+                "record_id": rec_id,
+                "item": item,
+                "zone": zone,
+                "zone_label": heuristic_res.get("zone_label", zone),
+                "heuristic_score": h_score,
+                "decision_name": decision_name,
+                "cf_percentage": cf_percent,
+                "safety_advice": heuristic_res.get("safety_advice", ""),
+                "record_status": record_status,
+                "whatsapp_url": wa_url,
+                "whatsapp_text": wa_msg
             })
             return
 
