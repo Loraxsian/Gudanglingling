@@ -16,6 +16,7 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 # Default Security PIN for Family/Admin Access
 DEFAULT_FAMILY_PIN = "1234"
+SECONDARY_FAMILY_PIN = "2422031"  # NIM Pengembang (Liana Sry Astuti) sebagai PIN alternatif
 
 # Server settings
 HOST = os.environ.get("HOST", "0.0.0.0")

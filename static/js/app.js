@@ -952,13 +952,13 @@ function esc(str) {
 function startChatSession() {
   appendBotChat(`
     <strong>Halo! Asisten GudangLingling siap memandu.</strong><br>
-    Masukkan 4-digit PIN keluarga untuk akses keamanan (Default: <code>1234</code>):
+    Masukkan PIN keamanan keluarga untuk akses sistem (Default: <code>1234</code>):
     <div class="chat-card">
       <div style="display:flex;gap:6px;">
-        <input type="password" id="drawer-pin-field" class="form-input" maxlength="4" placeholder="••••" value="1234">
+        <input type="password" id="drawer-pin-field" class="form-input" maxlength="7" placeholder="••••" value="1234">
         <button class="btn-act btn-primary-action" style="width:80px;" onclick="verifyDrawerPin()">Buka</button>
       </div>
-      <div id="drawer-pin-err" style="color:var(--red-text);font-size:11px;margin-top:4px;display:none;">PIN Salah!</div>
+      <div id="drawer-pin-err" style="color:var(--red-text);font-size:11px;margin-top:4px;display:none;">PIN salah! Gunakan PIN default: 1234 (atau 2422031).</div>
     </div>
   `);
 }
@@ -979,12 +979,105 @@ async function verifyDrawerPin() {
       state.sessionId = data.session_id;
       state.isAuthenticated = true;
       appendUserChat('PIN Terverifikasi');
-      showItemAndPhotoStep();
+
+      if (state.selectedItem) {
+        showItemAndPhotoStep();
+      } else {
+        showDynamicWelcomeAndQuickReplies();
+      }
     } else {
       errEl.style.display = 'block';
     }
   } catch (err) {
     alert('Koneksi server gagal.');
+  }
+}
+
+// Dynamic Welcome & Quick Reply Chips
+function showDynamicWelcomeAndQuickReplies() {
+  const totalItems = state.items.length;
+  const availableItems = state.items.filter(it => it.status === 'AVAILABLE').length;
+  const borrowedItems = state.items.filter(it => it.status === 'BORROWED').length;
+
+  let greetingText = '';
+  if (totalItems === 0) {
+    greetingText = `<strong>PIN Benar! Halo, selamat datang di GudangLingling AI.</strong><br>Saat ini gudang masih bersih dan belum ada perkakas yang tercatat. Ada yang bisa saya bantu?`;
+  } else {
+    greetingText = `<strong>PIN Benar! Halo, selamat datang di GudangLingling AI.</strong><br>Saat ini terdapat <strong>${availableItems} alat tersedia</strong>${borrowedItems > 0 ? ` dan <strong>${borrowedItems} alat sedang dipinjam</strong>` : ' di gudang'}. Ada yang bisa saya bantu?`;
+  }
+
+  appendBotChat(`
+    ${greetingText}
+    <div style="margin-top:10px;display:flex;flex-direction:column;gap:6px;">
+      <button class="chat-quick-btn" onclick="handleChatQuickAction('add_item')">
+        <span style="font-size:14px;color:var(--primary);font-weight:bold;">+</span>
+        <span>Tambah Alat Baru ke Inventaris</span>
+      </button>
+      <button class="chat-quick-btn" onclick="handleChatQuickAction('borrow_tool')">
+        <span style="font-size:12px;color:var(--green-text);">&#9658;</span>
+        <span>Pinjam Alat & Triase Risiko AI</span>
+      </button>
+      <button class="chat-quick-btn" onclick="handleChatQuickAction('check_borrowers')">
+        <span style="font-size:12px;color:var(--yellow-text);">&#9679;</span>
+        <span>Cek Status & Antrean Peminjam</span>
+      </button>
+      <button class="chat-quick-btn" onclick="handleChatQuickAction('view_faq')">
+        <span style="font-size:12px;color:#60a5fa;">?</span>
+        <span>Cara Kerja Sistem Pakar AI</span>
+      </button>
+    </div>
+  `);
+}
+
+function handleChatQuickAction(action) {
+  if (action === 'add_item') {
+    appendUserChat('Tambah Alat Baru');
+    appendBotChat('Membuka formulir pencatatan alat baru ke inventaris gudang...');
+    setTimeout(() => {
+      closeChatDrawer();
+      openAddItemModal();
+    }, 400);
+  } else if (action === 'borrow_tool') {
+    appendUserChat('Pinjam Alat');
+    if (!state.items.length) {
+      appendBotChat(`
+        Belum ada peralatan di inventaris gudang.<br>
+        Silakan tambahkan alat terlebih dahulu sebelum memproses peminjaman:
+        <div style="margin-top:8px;">
+          <button class="btn-act btn-primary-action btn-sm" onclick="closeChatDrawer(); openAddItemModal();">+ Tambah Alat Sekarang</button>
+        </div>
+      `);
+    } else {
+      showItemAndPhotoStep();
+    }
+  } else if (action === 'check_borrowers') {
+    appendUserChat('Cek Antrean Peminjam');
+    const borrowed = state.items.filter(it => it.status === 'BORROWED');
+    if (!borrowed.length) {
+      appendBotChat('Saat ini tidak ada alat yang sedang dipinjam. Semua peralatan tersimpan aman di gudang!');
+    } else {
+      const listHtml = borrowed.map(b => `&bull; <strong>${esc(b.name)}</strong>: Dipinjam oleh <em>${esc(b.active_borrower || 'Keluarga')}</em>`).join('<br>');
+      appendBotChat(`
+        Daftar peminjaman aktif saat ini:<br>
+        ${listHtml}
+        <div style="margin-top:8px;">
+          <button class="btn-act btn-subtle-action btn-sm" onclick="closeChatDrawer(); document.querySelector('[data-tab=message]').click();">Buka Menu Message</button>
+        </div>
+      `);
+    }
+  } else if (action === 'view_faq') {
+    appendUserChat('Cara Kerja AI');
+    appendBotChat(`
+      <strong>Sistem Pakar GudangLingling AI</strong> menggabungkan 3 modul perkuliahan:
+      <ol style="margin:6px 0 6px 18px;font-size:12px;line-height:1.5;">
+        <li><strong>Modul 3.2 (State-Space S0 &rarr; G):</strong> Memandu alur percakapan & fakta lapangan.</li>
+        <li><strong>Modul 6.7 (Forward Chaining & CF):</strong> Mesin inferensi kaidah rule pakar R01–R15 dengan Certainty Factor.</li>
+        <li><strong>Modul 4.5 (Heuristic Risk Triase):</strong> Evaluasi 3 zona keselamatan (Hijau, Kuning, Merah).</li>
+      </ol>
+      <div style="margin-top:6px;">
+        <button class="btn-act btn-subtle-action btn-sm" onclick="closeChatDrawer(); document.querySelector('[data-tab=faq]').click();">Buka Dokumentasi di Menu FaQ</button>
+      </div>
+    `);
   }
 }
 

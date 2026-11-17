@@ -1168,7 +1168,7 @@ html, body {
 }
 
 .bubble-bot {
-  background: #0f172a;
+  background: var(--bg-app);
   border: 1px solid var(--border-subtle);
   color: var(--text-primary);
   border-bottom-left-radius: 2px;
@@ -1197,6 +1197,35 @@ html, body {
   border-radius: var(--radius-sm);
   padding: 10px 12px;
   margin-top: 6px;
+}
+
+/* Chat Quick Action Chips (Quick Reply Buttons) */
+.chat-quick-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s ease;
+}
+
+.chat-quick-btn:hover {
+  background: var(--primary-subtle);
+  border-color: var(--primary);
+  color: var(--primary);
+  transform: translateX(2px);
+}
+
+.chat-quick-btn:active {
+  transform: scale(0.98);
 }
 
 /* ============================================================

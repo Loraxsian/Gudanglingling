@@ -17,14 +17,16 @@ if str(BASE_DIR) not in sys.path:
 from app import GudangLinglingRequestHandler
 from http.server import ThreadingHTTPServer
 from database.seed import seed_database_for_development
-from config import DEFAULT_FAMILY_PIN
+import config
 
 TEST_PORT = 8089
+TEST_DB = BASE_DIR / "database" / "test_gudanglingling.db"
 
 
 class TestAPIEndpoints(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        config.DB_PATH = TEST_DB
         seed_database_for_development()
         cls.server = ThreadingHTTPServer(("127.0.0.1", TEST_PORT), GudangLinglingRequestHandler)
         cls.server_thread = threading.Thread(target=cls.server.serve_forever, daemon=True)
@@ -35,6 +37,11 @@ class TestAPIEndpoints(unittest.TestCase):
     def tearDownClass(cls):
         cls.server.shutdown()
         cls.server.server_close()
+        if TEST_DB.exists():
+            try:
+                TEST_DB.unlink()
+            except Exception:
+                pass
 
     def test_01_health_endpoint(self):
         url = f"http://127.0.0.1:{TEST_PORT}/api/health"
@@ -55,7 +62,7 @@ class TestAPIEndpoints(unittest.TestCase):
     def test_03_auth_and_chat_flow(self):
         # 1. Test Auth PIN
         auth_url = f"http://127.0.0.1:{TEST_PORT}/api/auth"
-        body = json.dumps({"pin": DEFAULT_FAMILY_PIN}).encode("utf-8")
+        body = json.dumps({"pin": config.DEFAULT_FAMILY_PIN}).encode("utf-8")
         req = request.Request(auth_url, data=body, headers={"Content-Type": "application/json"})
         resp = request.urlopen(req)
         auth_data = json.loads(resp.read().decode("utf-8"))

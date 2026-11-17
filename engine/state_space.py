@@ -15,7 +15,7 @@ Himpunan State (Q):
 """
 
 from typing import Dict, Any, List, Optional
-from config import DEFAULT_FAMILY_PIN
+from config import DEFAULT_FAMILY_PIN, SECONDARY_FAMILY_PIN
 from engine.knowledge_base import FACTS, DECISIONS, Fact
 from engine.forward_chaining import ForwardChainingEngine
 from engine.heuristic_risk import HeuristicRiskEngine
@@ -55,7 +55,8 @@ class StateSpaceSession:
 
     def authenticate(self, pin: str) -> Dict[str, Any]:
         """Transisi dari S0_AUTH_PIN -> S1_SELECT_ITEM jika PIN valid."""
-        if pin.strip() == DEFAULT_FAMILY_PIN:
+        clean_pin = pin.strip()
+        if clean_pin in (DEFAULT_FAMILY_PIN, SECONDARY_FAMILY_PIN):
             self.is_authenticated = True
             self.current_state = ConversationState.SELECT_ITEM
             return {
@@ -65,7 +66,7 @@ class StateSpaceSession:
             }
         return {
             "success": False,
-            "message": "PIN Keamanan salah! Silakan masukkan PIN 7-digit keluarga yang benar.",
+            "message": "PIN Keamanan salah! Silakan gunakan PIN keluarga (Default: 1234 atau 2422031).",
             "next_state": self.current_state
         }
 
