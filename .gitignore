@@ -1,25 +1,43 @@
-# Byte-compiled / optimized / DLL files
+# ================================================
+#  GudangLingling AI — .gitignore
+#  File dan folder yang TIDAK boleh masuk ke repo
+# ================================================
+
+# Python cache
 __pycache__/
 *.py[cod]
 *$py.class
 
-# Runtime logs and PID
+# Runtime logs dan PID (dibuat saat app berjalan)
 *.log
 server.log
 server.pid
 
-# SQLite Database (generated on first run / docker volume)
+# SQLite Database (dibuat otomatis saat pertama kali dijalankan)
+# User yang install akan mendapat database kosong mereka sendiri
 database/*.db
 database/*.db-journal
+database/*.db-shm
+database/*.db-wal
 
-# Uploaded images during runtime (keep directory via .gitkeep)
+# Foto upload runtime (dibuat saat user upload foto via kamera)
 static/uploads/*
 !static/uploads/.gitkeep
 
-# Environments & OS files
+# Environment & virtual env
 .env
 .venv
 env/
 venv/
+ENV/
+
+# OS files
 .DS_Store
 Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo

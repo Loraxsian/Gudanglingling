@@ -1,6 +1,9 @@
 """
-Data Seed Awal Inventaris Peralatan Rumah Tangga GudangLingling
-Mencakup foto awal fisik, tingkat bahaya, dan spesifikasi peralatan.
+Database Initializer — GudangLingling AI
+Menginisialisasi skema database kosong (clean install).
+Inventaris diisi sendiri oleh pengguna melalui antarmuka aplikasi.
+
+Pengembang: Liana Sry Astuti (NIM: 2422031) - ITEBA
 """
 
 import sys
@@ -13,7 +16,11 @@ if str(BASE_DIR) not in sys.path:
 from database.db import get_connection, init_db
 
 
-SAMPLE_ITEMS = [
+# ---------------------------------------------------------------------------
+# Data referensi (hanya untuk dokumentasi dan testing mandiri pengembang).
+# TIDAK dijalankan secara otomatis saat instalasi / startup aplikasi.
+# ---------------------------------------------------------------------------
+SAMPLE_ITEMS_REFERENCE = [
     {
         "name": "Mesin Gerinda Tangan 4 Inch (540W)",
         "category": "Pertukangan Listrik",
@@ -90,6 +97,19 @@ SAMPLE_ITEMS = [
 
 
 def seed_database():
+    """
+    Dipanggil saat startup aplikasi — HANYA membuat skema tabel jika belum ada.
+    Tidak mengisi data dummy apapun. Database baru selalu dimulai kosong/bersih.
+    """
+    init_db()
+    print("[DB] Skema database siap. Inventaris kosong, menunggu data dari pengguna.")
+
+
+def seed_database_for_development():
+    """
+    KHUSUS PENGEMBANG: mengisi database dengan 8 item contoh untuk testing.
+    Jalankan manual: python3 database/seed.py --dev
+    """
     init_db()
     with get_connection() as conn:
         cursor = conn.cursor()
@@ -97,7 +117,7 @@ def seed_database():
         count = cursor.fetchone()["count"]
 
         if count == 0:
-            for item in SAMPLE_ITEMS:
+            for item in SAMPLE_ITEMS_REFERENCE:
                 cursor.execute("""
                 INSERT INTO items (name, category, power_watts, status, description, danger_level, last_photo_url)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -107,16 +127,13 @@ def seed_database():
                     item["last_photo_url"]
                 ))
             conn.commit()
-            print(f"[Seed] Berhasil menambahkan {len(SAMPLE_ITEMS)} peralatan awal dengan foto visual.")
+            print(f"[Dev Seed] {len(SAMPLE_ITEMS_REFERENCE)} item contoh berhasil ditambahkan.")
         else:
-            # Update photo URLs if empty
-            for item in SAMPLE_ITEMS:
-                cursor.execute("""
-                UPDATE items SET last_photo_url = ? WHERE name = ? AND (last_photo_url IS NULL OR last_photo_url = '')
-                """, (item["last_photo_url"], item["name"]))
-            conn.commit()
-            print(f"[Seed] Database sudah terisi ({count} item diperiksa).")
+            print(f"[Dev Seed] Database sudah ada data ({count} item). Seed dilewati.")
 
 
 if __name__ == "__main__":
-    seed_database()
+    if "--dev" in sys.argv:
+        seed_database_for_development()
+    else:
+        seed_database()

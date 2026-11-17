@@ -37,7 +37,7 @@ from database.db import (
     get_email_logs,
     unlock_maintenance_item
 )
-from database.seed import seed_database
+from database.seed import seed_database  # Hanya panggil init_db() — tidak insert data
 from engine.state_space import StateSpaceSession, CF_OPTIONS
 from engine.knowledge_base import FACTS, DECISIONS, RULES
 
@@ -442,7 +442,7 @@ class GudangLinglingRequestHandler(BaseHTTPRequestHandler):
 
 
 def run_server():
-    # Pastikan database terinisialisasi dan terisi data awal
+    # Inisialisasi skema database kosong (clean install — tanpa data dummy)
     seed_database()
 
     server_address = (config.HOST, config.PORT)
