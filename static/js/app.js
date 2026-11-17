@@ -1904,19 +1904,34 @@ function parseNaturalBorrowQuery(text) {
     phone = phoneMatch[1].replace(/[\-\s]/g, '');
   }
 
-  // 3. Extract Duration (days)
+  // 3. Extract Duration (days) & strip duration phrase from working text
   let days = 1;
-  const daysRegex = /(\d+)\s*(?:hari|hr|day|days)/i;
-  const daysMatch = text.match(daysRegex);
-  if (daysMatch) {
-    days = Math.max(1, Math.min(90, parseInt(daysMatch[1], 10)));
-  } else if (lower.includes('seminggu') || lower.includes('1 minggu')) {
-    days = 7;
-  } else if (lower.includes('dua hari') || lower.includes('2 hari')) {
-    days = 2;
-  } else if (lower.includes('tiga hari') || lower.includes('3 hari')) {
-    days = 3;
+  let durationMatchedPhrase = '';
+  const durationPatterns = [
+    { re: /(\d+)\s*(?:hari|hr|day|days)/i, fn: (m) => Math.max(1, Math.min(90, parseInt(m[1], 10))) },
+    { re: /\b(sehari|seharian|satu\s+hari)\b/i, fn: () => 1 },
+    { re: /\b(dua\s+hari)\b/i, fn: () => 2 },
+    { re: /\b(tiga\s+hari)\b/i, fn: () => 3 },
+    { re: /\b(empat\s+hari)\b/i, fn: () => 4 },
+    { re: /\b(lima\s+hari)\b/i, fn: () => 5 },
+    { re: /\b(enam\s+hari)\b/i, fn: () => 6 },
+    { re: /\b(seminggu|sepekan|satu\s+minggu|tujuh\s+hari)\b/i, fn: () => 7 },
+    { re: /\b(sebulan|satu\s+bulan)\b/i, fn: () => 30 }
+  ];
+  for (const pat of durationPatterns) {
+    const m = text.match(pat.re);
+    if (m) {
+      days = pat.fn(m);
+      durationMatchedPhrase = m[0];
+      break;
+    }
   }
+
+  // Working text with phone & duration removed cleanly
+  let workText = text;
+  if (phoneMatch) workText = workText.replace(phoneMatch[0], ' ');
+  if (durationMatchedPhrase) workText = workText.replace(durationMatchedPhrase, ' ');
+  workText = workText.replace(/\s+/g, ' ').trim();
 
   // 4. Match Tool against existing state.items
   let matchedTool = null;
@@ -1959,9 +1974,7 @@ function parseNaturalBorrowQuery(text) {
 
   // 5. If Tool matches existing item:
   if (matchedTool) {
-    let clean = text;
-    if (phoneMatch) clean = clean.replace(phoneMatch[0], ' ');
-    if (daysMatch) clean = clean.replace(daysMatch[0], ' ');
+    let clean = workText;
     clean = clean.replace(new RegExp(matchedTool.name, 'gi'), ' ');
     matchedTool.name.split(/\s+/).forEach(w => {
       if (w.length >= 3) clean = clean.replace(new RegExp('\\b' + w + '\\b', 'gi'), ' ');
@@ -1972,14 +1985,14 @@ function parseNaturalBorrowQuery(text) {
       'mau', 'ingin', 'tolong', 'dong', 'bisa', 'kah', 'ya', 'nomor', 'no',
       'wa', 'whatsapp', 'hp', 'nohp', 'telp', 'telepon', 'hari', 'hr',
       'buat', 'untuk', 'atas', 'nama', 'peminjam', 'halo', 'hai', 'siang',
-      'pagi', 'sore', 'malam', 'permisi'
+      'pagi', 'sore', 'malam', 'permisi', 'sehari', 'seharian', 'seminggu', 'sepekan'
     ];
     stopWords.forEach(sw => {
       clean = clean.replace(new RegExp('\\b' + sw + '\\b', 'gi'), ' ');
     });
 
     let name = clean.replace(/[^a-zA-Z\s]/g, ' ').replace(/\s+/g, ' ').trim();
-    const honorificMatch = text.match(/\b(pak|bu|bapak|ibu|mas|mbak)\s+([A-Za-z]+)/i);
+    const honorificMatch = workText.match(/\b(pak|bu|bapak|ibu|mas|mbak)\s+([A-Za-z]+)/i);
     if (honorificMatch) {
       name = `${honorificMatch[1].charAt(0).toUpperCase() + honorificMatch[1].slice(1).toLowerCase()} ${honorificMatch[2].charAt(0).toUpperCase() + honorificMatch[2].slice(1).toLowerCase()}`;
     } else if (name) {
@@ -1998,36 +2011,36 @@ function parseNaturalBorrowQuery(text) {
   }
 
   // 6. TOOL NOT FOUND IN DATABASE — Detect New Tool Candidates!
-  // Example pattern A: "Budi pinjam cangkul 3 hari nomor wa 0821..."
-  // Example pattern B: "pinjam cangkul untuk Budi 3 hari nomor wa 0821..."
+  // Example pattern A: "Abdilah pinjam sepeda sehari untuk lomba" -> Borrower: Abdilah, Tool: Sepeda
+  // Example pattern B: "pinjam cangkul untuk Budi 3 hari nomor wa 0821..." -> Tool: Cangkul, Borrower: Budi
   // Example pattern C: "tambah cangkul ke gudang"
   let candidateTool = '';
   let candidateBorrower = '';
 
-  // Pattern A: [Nama] (pinjam|minjam|mau pinjam) [Alat]
-  const patternA = /([A-Za-z\s]+?)\s+(?:pinjam|minjam|mau pinjam|ingin pinjam)\s+([A-Za-z0-9\s]+?)(?:\s+\d+\s*hari|\s+wa|\s+nomor|\s+no|\s*$)/i;
-  const matchA = text.match(patternA);
+  // Pattern A: [Nama] (mau/ingin)? (pinjam|minjam) [Alat] (untuk/buat/demi ...)?
+  const patternA = /^([A-Za-z\s]+?)\s+(?:(?:mau|ingin|akan|hendak)\s+)?(?:pinjam|minjam|meminjam|sewa|ambil)\s+([A-Za-z0-9\s]+?)(?:\s+(?:untuk|buat|demi|agar|keperluan)\b.*|\s+wa\b.*|\s+nomor\b.*|\s+no\b.*|\s*$)/i;
+  const matchA = workText.match(patternA);
 
   // Pattern B: (pinjam|minjam) [Alat] (untuk|buat|atas nama) [Nama]
-  const patternB = /(?:pinjam|minjam)\s+([A-Za-z0-9\s]+?)\s+(?:untuk|buat|atas nama)\s+([A-Za-z\s]+?)(?:\s+\d+\s*hari|\s+wa|\s+nomor|\s+no|\s*$)/i;
-  const matchB = text.match(patternB);
+  const patternB = /^(?:(?:tolong|mau|ingin)\s+)?(?:pinjam|minjam|meminjam)\s+([A-Za-z0-9\s]+?)\s+(?:untuk|buat|atas nama)\s+([A-Za-z\s]+?)(?:\s+wa\b.*|\s+nomor\b.*|\s+no\b.*|\s*$)/i;
+  const matchB = workText.match(patternB);
 
   // Pattern C: (tambah|catat|daftarkan|masukkan) [Alat]
   const patternC = /(?:tambah|catat|daftarkan|masukkan)\s+(?:alat\s+)?([A-Za-z0-9\s]+?)(?:\s+ke\s+rak|\s+baru|\s+gudang|\s*$)/i;
-  const matchC = text.match(patternC);
+  const matchC = workText.match(patternC);
 
-  if (matchB) {
-    candidateTool = matchB[1].trim();
-    candidateBorrower = matchB[2].trim();
-  } else if (matchA) {
+  if (matchA) {
     candidateBorrower = matchA[1].trim();
     candidateTool = matchA[2].trim();
+  } else if (matchB) {
+    candidateTool = matchB[1].trim();
+    candidateBorrower = matchB[2].trim();
   } else if (matchC) {
     candidateTool = matchC[1].trim();
   }
 
-  // Clean candidate tool
-  const toolStopWords = ['nomor', 'wa', 'no', 'hari', 'baru', 'untuk', 'buat', 'tolong'];
+  // Clean candidate tool from leftover stop words / duration words
+  const toolStopWords = ['nomor', 'wa', 'no', 'hari', 'sehari', 'seharian', 'seminggu', 'sepekan', 'baru', 'untuk', 'buat', 'tolong'];
   toolStopWords.forEach(sw => {
     candidateTool = candidateTool.replace(new RegExp('\\b' + sw + '\\b.*$', 'gi'), '').trim();
   });
