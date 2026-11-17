@@ -497,13 +497,22 @@ function renderBeranda() {
       actionBtn = `<button class="btn-act btn-primary-action btn-sm" onclick="openBorrowWizard(${it.id})">Pinjam Cepat</button>`;
     }
 
-    // --- Health / Risk Gauge ---
-    const dangerMap = { 'SANGAT TINGGI': 'red', 'TINGGI': 'yellow', 'SEDANG': 'yellow', 'RENDAH': 'green' };
-    const healthColor = dangerMap[it.danger_level] || 'green';
-    const healthLabel = it.danger_level === 'SANGAT TINGGI' ? 'Risiko Sangat Tinggi'
-                      : it.danger_level === 'TINGGI' ? 'Risiko Tinggi'
-                      : it.danger_level === 'SEDANG' ? 'Risiko Sedang'
-                      : 'Risiko Rendah';
+    // --- Clean Condition Status Pill (Aligned with Triase Zones) ---
+    let condColor = 'green';
+    let condLabel = 'Kondisi: Prima / Layak Pakai';
+    if (isLocked) {
+      condColor = 'red';
+      condLabel = 'Kondisi: Perlu Perbaikan (Terkunci)';
+    } else if (isBorrowed) {
+      condColor = 'yellow';
+      condLabel = 'Kondisi: Sedang Dipinjam Warga';
+    } else if (it.danger_level === 'TINGGI' || it.danger_level === 'SANGAT TINGGI') {
+      condColor = 'yellow';
+      condLabel = 'Kondisi: Perlu Perhatian Khusus (Wajib APD)';
+    } else if (it.danger_level === 'SEDANG') {
+      condColor = 'green';
+      condLabel = 'Kondisi: Layak Pakai';
+    }
 
     // --- Social Activity Line (last borrower / active borrower) ---
     let activityLine = '';
@@ -545,14 +554,9 @@ function renderBeranda() {
       <div class="asset-body">
         <div class="asset-name">${esc(it.name)}</div>
         <div class="asset-meta">${esc(it.category)}</div>
-        <div class="asset-health-bar">
-          <div class="health-label">
-            <span>Kelayakan Teknis</span>
-          </div>
-          <div class="health-gauge">
-            <div class="health-fill ${healthColor}"></div>
-          </div>
-          <span style="font-size:10.5px;font-weight:700;color:${healthColor === 'red' ? 'var(--red-text)' : healthColor === 'yellow' ? 'var(--yellow-text)' : 'var(--green-text)'};">${healthLabel.split(' ').pop()}</span>
+        <div class="asset-condition-pill ${condColor}">
+          <span class="status-pulse-dot ${condColor}" style="position:static;flex-shrink:0;"></span>
+          <span>${condLabel}</span>
         </div>
         ${activityLine}
         <div class="asset-actions">
