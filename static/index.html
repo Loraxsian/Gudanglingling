@@ -8,7 +8,7 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32x32.png">
   <link rel="icon" type="image/png" sizes="64x64" href="/img/favicon-64x64.png">
   <link rel="apple-touch-icon" href="/img/logo-emblem.png">
-  <link rel="stylesheet" href="/css/style.css?v=5.0">
+  <link rel="stylesheet" href="/css/style.css?v=5.1">
 </head>
 <body>
 
@@ -352,7 +352,11 @@
                 <span>+</span>
               </button>
               <div class="faq-answer">
-                Mesin inferensi mencocokkan fakta aktif ke dalam 15 Kaidah Produksi (R01-R15). Nilai kepastian dihitung dengan rumus Shortliffe & Buchanan: <code>CF(H,E) = CF(E) &times; CF_pakar</code> dan dikombinasikan dengan <code>CF_combine = CF1 + CF2 &times; (1 - CF1)</code>.
+                Mesin inferensi mencocokkan fakta aktif ke dalam 15 Kaidah Produksi (R01-R15). Nilai kepastian dihitung dengan rumus Shortliffe &amp; Buchanan: <code>CF(H,E) = CF(E) &times; CF_pakar</code> dan dikombinasikan dengan <code>CF_combine = CF1 + CF2 &times; (1 - CF1)</code>.
+                <ul style="margin:6px 0 0 18px;font-size:11.5px;color:var(--text-secondary);line-height:1.55;">
+                  <li><strong>Operator Premis <code>CF(E)</code>:</strong> Menggunakan <code>min(CF_user)</code> untuk kaidah <strong>AND</strong>, dan <code>max(CF_user)</code> untuk kaidah <strong>OR</strong>.</li>
+                  <li><strong>Rentang Keyakinan:</strong> <code>CF_user</code> bernilai <code>0.0</code> &ndash; <code>1.0</code>.</li>
+                </ul>
               </div>
             </div>
 
@@ -362,7 +366,11 @@
                 <span>+</span>
               </button>
               <div class="faq-answer">
-                Fungsi evaluasi heuristik menghitung total akumulasi bahaya: <code>h(S) = min(100, &sum; [w_i &times; CF_user(F_i)])</code>. Jika ditemukan red flag kritis fatal (kabel terkelupas/bodi bocor arus), sistem mengaktifkan override otomatis ke Zona Merah (&ge; 80).
+                Fungsi evaluasi heuristik menghitung total akumulasi bahaya: <code>h(S) = min(100, &sum; [w_i &times; CF_user(F_i)])</code>.
+                <ul style="margin:6px 0 0 18px;font-size:11.5px;color:var(--text-secondary);line-height:1.55;">
+                  <li><strong>Bobot Bahaya (<code>w_i</code>):</strong> Setiap indikator fakta (<code>F01</code>&ndash;<code>F20</code>) memiliki bobot risiko <code>0</code> &ndash; <code>40</code>.</li>
+                  <li><strong>Safety First Override:</strong> Jika fakta kritis (<code>is_critical_red_flag</code>) memiliki keyakinan <code>CF_user &ge; 0.6</code>, skor otomatis dinaikkan minimal ke <code>80.0</code> (Zona Merah).</li>
+                </ul>
               </div>
             </div>
 
@@ -764,6 +772,6 @@
 <!-- ==================== TOAST NOTIFICATION CONTAINER ==================== -->
 <div class="app-toast" id="app-toast"></div>
 
-<script src="/js/app.js?v=5.0"></script>
+<script src="/js/app.js?v=5.1"></script>
 </body>
 </html>
