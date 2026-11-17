@@ -1480,6 +1480,215 @@ function handleChatSubmit(e) {
   processUserChatMessage(text);
 }
 
+// ============================================================
+// NATURAL LANGUAGE ENTITY EXTRACTOR (EXPRESS BORROWING)
+// ============================================================
+function parseNaturalBorrowQuery(text) {
+  const lower = text.toLowerCase();
+  
+  // 1. Check for borrow intent keywords
+  const borrowKeywords = ['pinjam', 'minjam', 'meminjam', 'sewa', 'ambil', 'butuh', 'pakai', 'gunakan'];
+  const hasBorrow = borrowKeywords.some(kw => lower.includes(kw));
+  if (!hasBorrow) return null;
+
+  // 2. Extract Phone Number (e.g. 081212341234, 6281212341234, wa 081212341234)
+  let phone = '';
+  const phoneRegex = /(?:wa|nomor\s*wa|no\s*wa|nohp|no|nomor|hp|telp|whatsapp)?[:\s]*((?:\+?62|0)8[0-9\-\s]{7,13})/i;
+  const phoneMatch = text.match(phoneRegex);
+  if (phoneMatch) {
+    phone = phoneMatch[1].replace(/[\-\s]/g, '');
+  }
+
+  // 3. Extract Duration (days)
+  let days = 1;
+  const daysRegex = /(\d+)\s*(?:hari|hr|day|days)/i;
+  const daysMatch = text.match(daysRegex);
+  if (daysMatch) {
+    days = Math.max(1, Math.min(90, parseInt(daysMatch[1], 10)));
+  } else if (lower.includes('seminggu') || lower.includes('1 minggu')) {
+    days = 7;
+  } else if (lower.includes('dua hari') || lower.includes('2 hari')) {
+    days = 2;
+  } else if (lower.includes('tiga hari') || lower.includes('3 hari')) {
+    days = 3;
+  }
+
+  // 4. Match Tool against state.items
+  let matchedTool = null;
+  const items = (state.items || []);
+
+  // Try direct match
+  for (const it of items) {
+    if (lower.includes(it.name.toLowerCase())) {
+      matchedTool = it;
+      break;
+    }
+  }
+
+  // Try keyword matching (e.g. "bor", "palu", "tangga", "gerinda", "rumput")
+  if (!matchedTool) {
+    const sorted = [...items].sort((a, b) => b.name.length - a.name.length);
+    for (const it of sorted) {
+      const parts = it.name.toLowerCase().split(/\s+/).filter(p => p.length >= 3);
+      for (const p of parts) {
+        if (lower.includes(p)) {
+          matchedTool = it;
+          break;
+        }
+      }
+      if (matchedTool) break;
+    }
+  }
+
+  // Common tool synonyms fallback
+  if (!matchedTool && items.length > 0) {
+    if (lower.includes('bor')) matchedTool = items.find(i => i.name.toLowerCase().includes('bor'));
+    else if (lower.includes('palu')) matchedTool = items.find(i => i.name.toLowerCase().includes('palu'));
+    else if (lower.includes('tangga')) matchedTool = items.find(i => i.name.toLowerCase().includes('tangga'));
+    else if (lower.includes('gerinda')) matchedTool = items.find(i => i.name.toLowerCase().includes('gerinda'));
+    else if (lower.includes('rumput')) matchedTool = items.find(i => i.name.toLowerCase().includes('rumput'));
+    else if (lower.includes('jet') || lower.includes('cuci')) matchedTool = items.find(i => i.name.toLowerCase().includes('jet') || i.name.toLowerCase().includes('cuci'));
+    else if (lower.includes('obeng')) matchedTool = items.find(i => i.name.toLowerCase().includes('obeng'));
+    else if (lower.includes('jigsaw') || lower.includes('gergaji')) matchedTool = items.find(i => i.name.toLowerCase().includes('jigsaw'));
+  }
+
+  if (!matchedTool) {
+    return {
+      type: 'BORROW_UNKNOWN_TOOL',
+      phone,
+      days,
+      rawText: text
+    };
+  }
+
+  // 5. Extract Borrower Name
+  let clean = text;
+  if (phoneMatch) clean = clean.replace(phoneMatch[0], ' ');
+  if (daysMatch) clean = clean.replace(daysMatch[0], ' ');
+  clean = clean.replace(new RegExp(matchedTool.name, 'gi'), ' ');
+  matchedTool.name.split(/\s+/).forEach(w => {
+    if (w.length >= 3) clean = clean.replace(new RegExp('\\b' + w + '\\b', 'gi'), ' ');
+  });
+
+  const stopWords = [
+    'pinjam', 'minjam', 'meminjam', 'sewa', 'ambil', 'butuh', 'pakai',
+    'mau', 'ingin', 'tolong', 'dong', 'bisa', 'kah', 'ya', 'nomor', 'no',
+    'wa', 'whatsapp', 'hp', 'nohp', 'telp', 'telepon', 'hari', 'hr',
+    'buat', 'untuk', 'atas', 'nama', 'peminjam', 'halo', 'hai', 'siang',
+    'pagi', 'sore', 'malam', 'permisi'
+  ];
+  stopWords.forEach(sw => {
+    clean = clean.replace(new RegExp('\\b' + sw + '\\b', 'gi'), ' ');
+  });
+
+  // Extract clean alphabetical name
+  let name = clean.replace(/[^a-zA-Z\s]/g, ' ').replace(/\s+/g, ' ').trim();
+  
+  // Detect honorifics
+  const honorificMatch = text.match(/\b(pak|bu|bapak|ibu|mas|mbak)\s+([A-Za-z]+)/i);
+  if (honorificMatch) {
+    name = `${honorificMatch[1].charAt(0).toUpperCase() + honorificMatch[1].slice(1).toLowerCase()} ${honorificMatch[2].charAt(0).toUpperCase() + honorificMatch[2].slice(1).toLowerCase()}`;
+  } else if (name) {
+    name = name.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+  }
+
+  if (!name || name.length < 2) {
+    name = 'Warga / Peminjam';
+  }
+
+  return {
+    type: 'BORROW_EXPRESS',
+    tool: matchedTool,
+    name,
+    phone,
+    days
+  };
+}
+
+async function executeExpressBorrow(toolId, borrowerName, borrowerPhone, borrowDays) {
+  const submitBtn = document.getElementById(`btn-confirm-express-${toolId}`);
+  if (submitBtn) {
+    submitBtn.textContent = 'Memproses Triase & Menyimpan...';
+    submitBtn.disabled = true;
+  }
+
+  try {
+    const res = await fetch('/api/borrow/wizard', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        item_id: toolId,
+        borrower_name: borrowerName,
+        borrower_phone: borrowerPhone,
+        borrow_days: borrowDays,
+        facts: {}
+      })
+    });
+    const data = await res.json();
+    if (!data.success) {
+      showToast(data.error || 'Gagal memproses peminjaman kilat.', 'warn');
+      if (submitBtn) {
+        submitBtn.textContent = '⚡ Konfirmasi & Pinjam Sekarang (1-Klik)';
+        submitBtn.disabled = false;
+      }
+      return;
+    }
+
+    await loadAllData();
+
+    appendBotChat(`
+      <div style="background:var(--bg-surface);border:1.5px solid var(--green);border-radius:12px;padding:12px;margin-top:6px;">
+        <div style="display:flex;align-items:center;gap:6px;font-weight:800;color:var(--green-text);font-size:12.5px;">
+          <span class="status-pulse-dot green" style="position:static;"></span>
+          <span>PEMINJAMAN KILAT BERHASIL DICATAT!</span>
+        </div>
+        <div style="font-size:12.5px;color:var(--text-primary);margin:6px 0;line-height:1.4;">
+          <strong>${esc(data.item.name)}</strong> resmi tercatat dipinjam oleh <strong>${esc(borrowerName)}</strong> selama <strong>${borrowDays} hari</strong>.
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;margin-top:8px;">
+          <a href="${data.whatsapp_url}" target="_blank" class="btn-act btn-whatsapp-action btn-sm" style="text-decoration:none;display:flex;justify-content:center;align-items:center;gap:6px;">
+            Kirim Bukti Serah Terima ke WhatsApp
+          </a>
+          <button class="btn-act btn-subtle-action btn-sm" onclick="closeChatDrawer()">Tutup Asisten</button>
+        </div>
+      </div>
+    `);
+    showToast(`Peminjaman ${data.item.name} untuk ${borrowerName} berhasil dicatat!`, 'success');
+  } catch (err) {
+    showToast('Koneksi server gagal saat mencatat peminjaman.', 'warn');
+    if (submitBtn) {
+      submitBtn.textContent = '⚡ Konfirmasi & Pinjam Sekarang (1-Klik)';
+      submitBtn.disabled = false;
+    }
+  }
+}
+
+function openBorrowWizardWithData(toolId, name, phone, days) {
+  closeChatDrawer();
+  openBorrowWizard(toolId);
+  if (name && name !== 'Warga / Peminjam') {
+    const nameEl = document.getElementById('wizard-borrower-name');
+    if (nameEl) nameEl.value = name;
+  }
+  if (phone) {
+    const phoneEl = document.getElementById('wizard-borrower-phone');
+    if (phoneEl) phoneEl.value = phone;
+  }
+  if (days) {
+    const daysSel = document.getElementById('wizard-borrow-days');
+    const customWrap = document.getElementById('wizard-custom-days-wrap');
+    const customInput = document.getElementById('wizard-custom-days-input');
+    if (['1', '2', '3', '5', '7'].includes(String(days))) {
+      if (daysSel) daysSel.value = String(days);
+      if (customWrap) customWrap.style.display = 'none';
+    } else {
+      if (daysSel) daysSel.value = 'custom';
+      if (customWrap) customWrap.style.display = 'block';
+      if (customInput) customInput.value = String(days);
+    }
+  }
+}
+
 // Conversational AI Parser (Intelligent Natural Responses)
 function processUserChatMessage(rawText) {
   appendUserChat(rawText);
@@ -1488,6 +1697,101 @@ function processUserChatMessage(rawText) {
   const query = rawText.toLowerCase().trim();
 
   setTimeout(() => {
+    // 0. NATURAL LANGUAGE EXPRESS BORROWING (e.g. "Budi pinjam bor listrik 3 hari nomor wa 081212341234")
+    const borrowIntent = parseNaturalBorrowQuery(rawText);
+    if (borrowIntent) {
+      if (borrowIntent.type === 'BORROW_EXPRESS') {
+        const tool = borrowIntent.tool;
+        const name = borrowIntent.name;
+        const phone = borrowIntent.phone;
+        const days = borrowIntent.days;
+
+        if (tool.status === 'BORROWED') {
+          appendBotChat(`
+            Perhatian: <strong>${esc(tool.name)}</strong> saat ini sedang dipinjam oleh <strong>${esc(tool.active_borrower || 'warga lain')}</strong>.<br>
+            Estimasi alat kembali dalam beberapa hari. Silakan pilih perkakas lain yang sedang tersedia:
+            <div style="margin-top:8px;">
+              <button class="btn-act btn-subtle-action btn-sm" onclick="sendSuggestedQuery('Alat apa saja yang sedang ready?')">
+                Lihat Perkakas Ready
+              </button>
+            </div>
+          `);
+          return;
+        }
+
+        if (tool.status === 'MAINTENANCE_LOCKED') {
+          appendBotChat(`
+            Peringatan Keselamatan: <strong>${esc(tool.name)}</strong> saat ini berstatus <strong>Karantina Servis (Lockout)</strong> dan belum boleh dipinjamkan demi keselamatan bersama.
+          `);
+          return;
+        }
+
+        // Available! Render the Express Borrow Card
+        appendBotChat(`
+          <div class="chat-express-card">
+            <div class="express-header">
+              <span class="express-badge">Peminjaman Kilat Terdeteksi</span>
+              <span class="status-pulse-dot green" style="position:static;"></span>
+            </div>
+
+            <div class="express-tool-row">
+              <img class="express-tool-thumb" src="${tool.last_photo_url || '/img/bor.svg'}" alt="${esc(tool.name)}" onerror="this.onerror=null; this.src='/img/bor.svg';">
+              <div>
+                <div style="font-weight:700;font-size:13px;color:var(--text-primary);">${esc(tool.name)}</div>
+                <div style="font-size:11px;color:var(--text-secondary);">${esc(tool.category)} &bull; ${tool.power_watts ? tool.power_watts + 'W' : 'Non-Listrik'}</div>
+              </div>
+            </div>
+
+            <div class="express-data-grid">
+              <div class="express-data-item">
+                <div class="express-data-lbl">Peminjam</div>
+                <div class="express-data-val">${esc(name)}</div>
+              </div>
+              <div class="express-data-item">
+                <div class="express-data-lbl">Durasi Pinjam</div>
+                <div class="express-data-val">${days} Hari</div>
+              </div>
+              <div class="express-data-item" style="grid-column:span 2;">
+                <div class="express-data-lbl">WhatsApp</div>
+                <div class="express-data-val">${phone ? esc(phone) : '<span style="color:var(--text-muted);font-weight:normal;">Belum dicantumkan</span>'}</div>
+              </div>
+            </div>
+
+            <div class="express-triase-bar">
+              <span class="status-pulse-dot green" style="position:static;flex-shrink:0;"></span>
+              <span>Triase AI Otomatis: <strong>Zona Hijau (Layak Pakai)</strong></span>
+            </div>
+
+            <div class="express-actions-col">
+              <button class="btn-act btn-primary-action btn-sm" id="btn-confirm-express-${tool.id}" onclick="executeExpressBorrow(${tool.id}, '${esc(name)}', '${esc(phone)}', ${days})">
+                ⚡ Konfirmasi &amp; Pinjam Sekarang (1-Klik)
+              </button>
+              <button class="btn-act btn-subtle-action btn-sm" onclick="openBorrowWizardWithData(${tool.id}, '${esc(name)}', '${esc(phone)}', ${days})">
+                Buka di Form Wizard (Foto &amp; Cek Fisik)
+              </button>
+            </div>
+          </div>
+        `);
+        return;
+      } else if (borrowIntent.type === 'BORROW_UNKNOWN_TOOL') {
+        const available = (state.items || []).filter(it => it.status === 'AVAILABLE');
+        const listHtml = available.map(t => `
+          <button class="chat-quick-btn" onclick="sendSuggestedQuery('${borrowIntent.rawText.replace(/pinjam/gi, '').trim()} pinjam ${t.name}')">
+            <span>&rsaquo;</span> Pinjam: ${esc(t.name)}
+          </button>
+        `).join('');
+
+        appendBotChat(`
+          Terdeteksi permintaan peminjaman, namun nama alat belum teridentifikasi jelas.<br>
+          Pilih salah satu perkakas yang sedang tersedia:
+          <div style="display:flex;flex-direction:column;gap:5px;margin-top:8px;">
+            ${listHtml || '<div style="font-size:11.5px;color:var(--text-muted);">Tidak ada alat ready saat ini.</div>'}
+          </div>
+        `);
+        return;
+      }
+    }
+
     // 1. Intent: Siapa Pengembang / Info Akademik
     if (query.includes('pengembang') || query.includes('developer') || query.includes('liana') || query.includes('iteba') || query.includes('dosen') || query.includes('caniago') || query.includes('nim') || query.includes('kampus')) {
       appendBotChat(`
