@@ -258,13 +258,20 @@ function updateHeaderStatus() {
   if (!dotEl || !textEl) return;
 
   const total = (state.items || []).length;
+  let availableCount = 0;
   let borrowedCount = 0;
   let lockedCount = 0;
 
   (state.items || []).forEach(it => {
-    if (it.status === 'BORROWED') borrowedCount++;
+    if (it.status === 'AVAILABLE') availableCount++;
+    else if (it.status === 'BORROWED') borrowedCount++;
     else if (it.status === 'MAINTENANCE_LOCKED') lockedCount++;
   });
+
+  const chatStatusEl = document.getElementById('chat-header-status');
+  if (chatStatusEl) {
+    chatStatusEl.innerHTML = `Online &bull; ${availableCount} Ready &bull; ${borrowedCount} Dipinjam${lockedCount > 0 ? ` &bull; ${lockedCount} Terkunci` : ''}`;
+  }
 
   dotEl.className = 'status-pulse-dot';
 
@@ -1639,65 +1646,21 @@ async function ensureAuthenticatedSession() {
   return false;
 }
 
-// Start / Welcome Greeting
+// Start / Human-Centric Welcome Greeting (Progressive Disclosure)
 async function startChatSession() {
   await ensureAuthenticatedSession();
 
-  let availableCount = 0;
-  let borrowedCount = 0;
-  let lockedCount = 0;
-  (state.items || []).forEach(it => {
-    if (it.status === 'AVAILABLE') availableCount++;
-    else if (it.status === 'BORROWED') borrowedCount++;
-    else if (it.status === 'MAINTENANCE_LOCKED') lockedCount++;
-  });
-
-  const hour = new Date().getHours();
-  let timeGreeting = 'Selamat Pagi';
-  if (hour >= 11 && hour < 15) timeGreeting = 'Selamat Siang';
-  else if (hour >= 15 && hour < 18) timeGreeting = 'Selamat Sore';
-  else if (hour >= 18 || hour < 4) timeGreeting = 'Selamat Malam';
-
   appendBotChat(`
-    <div class="chat-hero-card">
-      <div class="chat-hero-header">
-        <span class="status-pulse-dot green" style="position:static;"></span>
-        <span>👋 ${timeGreeting}! Saya Asisten GudangLingling.</span>
-      </div>
-      <div class="chat-hero-desc">
-        Sistem pakar inventaris perkakas warga. Saya siap membantu pengecekan alat ready, triase keselamatan fisik, hingga pinjam kilat!
-      </div>
-      <div class="chat-status-strip">
-        <div class="chat-status-pill">
-          <div class="val" style="color:var(--green-text);">${availableCount}</div>
-          <div class="lbl">✅ Ready</div>
-        </div>
-        <div class="chat-status-pill">
-          <div class="val" style="color:var(--yellow-text);">${borrowedCount}</div>
-          <div class="lbl">⏳ Dipinjam</div>
-        </div>
-        <div class="chat-status-pill">
-          <div class="val" style="color:var(--red-text);">${lockedCount}</div>
-          <div class="lbl">🔒 Terkunci</div>
-        </div>
-      </div>
-      <div style="font-size:11.5px;color:var(--text-secondary);line-height:1.4;">
-        Ketik pesan atau lampirkan foto alat di bawah, atau pilih menu cepat:
-      </div>
-      <div style="display:flex;flex-direction:column;gap:6px;margin-top:8px;">
-        <button class="btn-act btn-primary-action btn-sm" style="width:100%;justify-content:space-between;" onclick="handleChatQuickAction('borrow_tool')">
-          <span>⚡ Form Pinjam Cepat (Smart Wizard)</span>
-          <span>&rarr;</span>
-        </button>
-        <button class="btn-act btn-subtle-action btn-sm" style="width:100%;justify-content:space-between;" onclick="handleChatQuickAction('check_ready')">
-          <span>📦 Lihat Alat yang Sedang Ready</span>
-          <span>&rsaquo;</span>
-        </button>
-        <button class="btn-act btn-subtle-action btn-sm" style="width:100%;justify-content:space-between;" onclick="handleChatQuickAction('add_item')">
-          <span>➕ Tambah Alat Baru ke Rak</span>
-          <span>&rsaquo;</span>
-        </button>
-      </div>
+    <div style="font-size:13px;line-height:1.5;color:var(--text-primary);">
+      Halo, Warga! Ada alat yang ingin dipinjam atau dikembalikan hari ini? Silakan ketik atau pilih menu di bawah ya.
+    </div>
+    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+      <button class="btn-act btn-primary-action btn-sm" style="flex:1;min-width:120px;" onclick="handleChatQuickAction('borrow_tool')">
+        ⚡ Pinjam Alat
+      </button>
+      <button class="btn-act btn-subtle-action btn-sm" style="flex:1;min-width:120px;" onclick="handleChatQuickAction('check_ready')">
+        📦 Cek Status Alat
+      </button>
     </div>
   `);
 }

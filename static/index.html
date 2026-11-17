@@ -8,7 +8,7 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32x32.png">
   <link rel="icon" type="image/png" sizes="64x64" href="/img/favicon-64x64.png">
   <link rel="apple-touch-icon" href="/img/logo-emblem.png">
-  <link rel="stylesheet" href="/css/style.css?v=6.5">
+  <link rel="stylesheet" href="/css/style.css?v=6.6">
 </head>
 <body>
 
@@ -495,7 +495,7 @@
         <span>Asisten GudangLingling</span>
         <span class="ai-pill-tag">AI Pakar</span>
       </div>
-      <div class="drawer-header-sub">Online &bull; Triase Risiko &amp; Konsultasi Alat</div>
+      <div class="drawer-header-sub" id="chat-header-status">Online &bull; 0 Ready &bull; 0 Dipinjam</div>
     </div>
     <div class="drawer-actions">
       <button class="btn-drawer-icon" id="btn-restart-chat" title="Mulai Ulang Percakapan" onclick="restartChatConversation()">
@@ -518,13 +518,10 @@
     <!-- Messages injected dynamically by JS -->
   </div>
 
-  <!-- Quick Suggestion Action Carousel (3 Essential Chips) -->
+  <!-- Quick Suggestion Action Carousel (Minimal Chips) -->
   <div class="chat-suggestions-bar" id="chat-suggestions-bar">
     <button class="suggestion-chip" style="border-color:var(--primary);color:var(--primary);font-weight:700;" onclick="sendSuggestedQuery('Budi pinjam bor listrik 3 hari nomor wa 081212341234')">
-      <span>⚡ Pinjam Kilat</span>
-    </button>
-    <button class="suggestion-chip" onclick="sendSuggestedQuery('Alat apa saja yang sedang ready?')">
-      <span>📦 Cek Alat Ready</span>
+      <span>⚡ Contoh Pinjam Kilat</span>
     </button>
     <button class="suggestion-chip" onclick="sendSuggestedQuery('Bagaimana aturan dan durasi pinjam?')">
       <span>📋 Aturan Pinjam</span>
@@ -820,6 +817,6 @@
 <!-- ==================== TOAST NOTIFICATION CONTAINER ==================== -->
 <div class="app-toast" id="app-toast"></div>
 
-<script src="/js/app.js?v=6.5"></script>
+<script src="/js/app.js?v=6.6"></script>
 </body>
 </html>
