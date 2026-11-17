@@ -272,14 +272,16 @@ def save_borrowing_record(data: Dict[str, Any]) -> int:
             data.get("initial_photo_url", "")
         ))
         record_id = cursor.lastrowid
+        item_row = cursor.execute("SELECT name FROM items WHERE id = ?", (data.get("item_id"),)).fetchone()
+        item_name = item_row["name"] if item_row else f"Alat #{data.get('item_id')}"
         conn.commit()
 
-        # Otomatis catat log arsip email cadangan
+        # Catat otomatis ke buku riwayat peminjaman warga
         log_email_archive(
             record_id=record_id,
             recipient="arsip-keluarga@gudanglingling.internal",
-            subject=f"Bukti Peminjaman: {data.get('decision_name')} - {data.get('borrower_name')}",
-            status="TERKIRIM (Arsip Digital)"
+            subject=f"Peminjaman {item_name} oleh {data.get('borrower_name')} disetujui ({data.get('decision_name') or 'Kondisi Bagus'}).",
+            status="Bukti Disimpan"
         )
         return record_id
 
@@ -288,12 +290,18 @@ def complete_return_check(record_id: int, return_photo_url: str) -> bool:
     """Menyelesaikan pengembalian dengan perbandingan foto kondisi akhir."""
     with get_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT item_id, borrower_name FROM borrowing_records WHERE id = ?", (record_id,))
+        cursor.execute("""
+        SELECT b.item_id, b.borrower_name, i.name as item_name
+        FROM borrowing_records b
+        LEFT JOIN items i ON b.item_id = i.id
+        WHERE b.id = ?
+        """, (record_id,))
         row = cursor.fetchone()
         if not row:
             return False
 
         item_id = row["item_id"]
+        item_name = row["item_name"] or f"Alat #{item_id}"
         cursor.execute("""
         UPDATE borrowing_records
         SET status = 'RETURNED', return_photo_url = ?, returned_at = CURRENT_TIMESTAMP
@@ -303,12 +311,12 @@ def complete_return_check(record_id: int, return_photo_url: str) -> bool:
         cursor.execute("UPDATE items SET status = 'AVAILABLE', last_photo_url = ? WHERE id = ?", (return_photo_url, item_id))
         conn.commit()
 
-        # Catat email log pengembalian
+        # Catat ke buku riwayat pengembalian
         log_email_archive(
             record_id=record_id,
             recipient="arsip-keluarga@gudanglingling.internal",
-            subject=f"Pengembalian Selesai: Item #{item_id} oleh {row['borrower_name']}",
-            status="TERKIRIM (Pengembalian Diverifikasi)"
+            subject=f"Pengembalian {item_name} oleh {row['borrower_name']} selesai dicek.",
+            status="Tercatat di Buku"
         )
         return True
 

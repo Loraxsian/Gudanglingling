@@ -611,18 +611,11 @@ class GudangLinglingRequestHandler(BaseHTTPRequestHandler):
             if clean_phone.startswith("0"):
                 clean_phone = "62" + clean_phone[1:]
 
-            wa_msg = f"*--- NOTIFIKASI GUDANGLINGLING AI ---*\n"
-            wa_msg += f"Halo *{borrower_name}*,\n"
-            wa_msg += f"Pengecekan teknis dan triase keamanan untuk peminjaman *{item['name']}* telah selesai diproses oleh Sistem Pakar GudangLingling AI.\n\n"
-            wa_msg += f"*Status Triase Keselamatan:*\n"
-            wa_msg += f"- Keputusan: {decision_name}\n"
-            wa_msg += f"- Zonasi: {heuristic_res.get('zone_label', zone)}\n"
-            wa_msg += f"- Skor Risiko h(S): {h_score}/100\n"
-            wa_msg += f"- Keyakinan AI (Certainty Factor): {cf_percent}%\n\n"
-            wa_msg += f"*Instruksi Keselamatan:* {heuristic_res.get('safety_advice', 'Alat aman digunakan.')}\n"
-            wa_msg += f"*Durasi Pinjam:* {borrow_days} Hari\n"
-            wa_msg += f"Mohon rawat alat dengan baik dan kembalikan tepat waktu demi kenyamanan bersama.\n\n"
-            wa_msg += f"_Sistem Cerdas GudangLingling — Pengembang: Liana Sry Astuti (ITEBA)_"
+            wa_msg = f"Halo *{borrower_name}*,\n"
+            wa_msg += f"Peminjaman alat *{item['name']}* selama *{borrow_days} hari* sudah dicatat di GudangLingling.\n\n"
+            wa_msg += f"Status kondisi: *{decision_name}* ({heuristic_res.get('zone_label', zone)}, skor risiko {h_score}/100).\n"
+            wa_msg += f"Catatan pemakaian: {heuristic_res.get('safety_advice', 'Alat aman digunakan.')}\n\n"
+            wa_msg += f"Mohon dijaga baik-baik dan dikembalikan tepat waktu ya. Terima kasih!"
 
             encoded_wa = quote(wa_msg)
             wa_url = f"https://wa.me/{clean_phone}?text={encoded_wa}" if clean_phone else f"https://wa.me/?text={encoded_wa}"
@@ -673,8 +666,8 @@ class GudangLinglingRequestHandler(BaseHTTPRequestHandler):
             log_email_archive(
                 record_id=int(record_id) if record_id else None,
                 recipient="arsip-keluarga@gudanglingling.internal",
-                subject=f"Bukti WA Terkirim: {item_name} ({borrow_days} Hari) - {borrower_name}",
-                status="SAH • Arsip Digital Permanen"
+                subject=f"Pesan WA konfirmasi peminjaman {item_name} ({borrow_days} hari) dikirim ke {borrower_name}.",
+                status="Bukti Disimpan"
             )
             self._send_json({"success": True, "message": "Bukti serah terima tercatat permanen di log arsip."})
             return

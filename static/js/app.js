@@ -1527,7 +1527,7 @@ function renderMessage() {
       }
 
       const waMsg = encodeURIComponent(
-        `Halo ${r.borrower_name}, ini pengingat ramah dari GudangLingling mengenai peminjaman alat *${r.item_name}* (Durasi: ${r.borrow_days} hari). Mohon informasikan jika sudah selesai digunakan. Terima kasih!`
+        `Halo ${r.borrower_name}, sekadar mengingatkan alat *${r.item_name}* yang dipinjam selama ${r.borrow_days} hari ya. Kalau sudah selesai dipakai, kabari ya. Terima kasih!`
       );
       const cleanPhone = (r.borrower_phone || '').replace(/[^0-9]/g, '');
       const waUrl = cleanPhone ? `https://wa.me/${cleanPhone}?text=${waMsg}` : `https://wa.me/?text=${waMsg}`;
@@ -1567,7 +1567,14 @@ function renderMessage() {
       </tr>`;
   } else {
     state.emailLogs.forEach(log => {
-      const statusDisplay = log.status === 'ARCHIVED' ? '✅ Tersimpan' : esc(log.status);
+      let statusDisplay = esc(log.status || 'Bukti Disimpan');
+      if (log.status === 'ARCHIVED' || log.status === 'TERKIRIM (Arsip Digital)' || log.status === 'SAH • Arsip Digital Permanen') {
+        statusDisplay = '✅ Bukti Disimpan';
+      } else if (log.status === 'TERKIRIM (Pengembalian Diverifikasi)' || log.status === 'Tercatat di Buku') {
+        statusDisplay = '✅ Tercatat di Buku';
+      } else if (log.status === 'Bukti Disimpan') {
+        statusDisplay = '✅ Bukti Disimpan';
+      }
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td>${(log.created_at || '').substring(0, 16)}</td>
