@@ -2565,7 +2565,7 @@ function parseNaturalBorrowQuery(text) {
 
   // 0. GUARDRAIL: Pertanyaan informatif / FAQ / Riwayat TIDAK BOLEH masuk ke Loan Intent
   const startsWithQuestion = /^(bagaimana|gimana|gmna|apa|apakah|berapa|brp|kenapa|mengapa|kapan|dimana|siapa|bolehkah|jelaskan|info|cek|list|daftar|ada\s+(yang|yg|apa)|mana\s+(yang|yg))\b/i.test(lower);
-  const hasFaqOrStatusKeyword = /\b(aturan|syarat|durasi|batas\s*waktu|cara\s*pinjam|cara\s*kerja|biaya|gratis|denda|rusak|terkunci|lockout|servis|bermasalah|dipinjam|dipinjem|terpinjam|zona|triase|forward\s*chaining|certainty|riwayat|histori|log|aktivitas|pengembang|liana|iteba|dosen|ready|tersedia|stok|inventaris|peminjam\s*terakhir)\b/i.test(lower);
+  const hasFaqOrStatusKeyword = /\b(aturan|syarat|durasi|batas\s*waktu|cara\s*pinjam|cara\s*kerja|biaya|gratis|denda|rusak|terkunci|lockout|servis|bermasalah|dipinjam|dipinjem|terpinjam|zona|triase|forward\s*chaining|certainty|pakar|expert|metode|rumus|fakta|rule|keputusan|knowledge\s*base|state\s*space|teknisi|k3|heuristik|red\s*flag|riwayat|histori|log|aktivitas|pengembang|liana|iteba|dosen|ready|tersedia|stok|inventaris|peminjam\s*terakhir)\b/i.test(lower);
   if (startsWithQuestion || hasFaqOrStatusKeyword) {
     return null;
   }
@@ -3592,23 +3592,87 @@ async function processUserChatMessage(rawText, photoBase64 = null) {
       return;
     }
 
-    // 3. Intent: 3 Zona Triase Risiko AI
-    if (query.includes('zona') || query.includes('triase') || query.includes('forward chaining') || query.includes('certainty factor') || query.includes('heuristik') || query.includes('cara kerja ai') || query.includes('sistem pakar')) {
+    // 3A. Intent: Forward Chaining & Rumus Certainty Factor (CF)
+    if (/\b(forward\s*chaining|certainty\s*factor|rumus\s*cf|cf\s*combine|cf\s*pakar|penalaran\s*maju)\b/.test(query) || (/\b(cf|rumus|perhitungan)\b/.test(query) && /\b(pakar|ai|keyakinan|inferensi|rule)\b/.test(query))) {
       appendBotChat(`
-        <strong>3 Zona Triase Keputusan AI:</strong>
-        <div style="display:flex;flex-direction:column;gap:6px;margin-top:6px;">
+        <strong>Mesin Inferensi: Forward Chaining &amp; Certainty Factor (CF)</strong>
+        <div style="background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:8px;padding:10px;margin-top:6px;font-size:12px;line-height:1.6;">
+          • <strong>Forward Chaining (Data-Driven):</strong> Dimulai dari fakta kondisi fisik yang diinput pengguna (<code>F01–F20</code>), lalu mencocokkan kaidah <code>IF–THEN</code> (<code>R01–R15</code>) untuk menarik keputusan (<code>K01–K05</code>).<br>
+          • <strong>CF Rule Tunggal:</strong> <code>CF(H,E) = CF(E) &times; CF_pakar</code><br>
+          &nbsp;&nbsp;(<code>AND</code> pakai <code>min</code>, <code>OR</code> pakai <code>max</code>).<br>
+          • <strong>CF Combine:</strong> <code>CF_combine = CF1 + CF2 &times; (1 - CF1)</code><br>
+          • <strong>Contoh:</strong> <code>IF F13 (0,8) AND F14 (0,8) THEN K04 (0,85)</code> &rarr; <code>0,8 &times; 0,85 = 0,68 (68,0%)</code>.
+        </div>
+      `);
+      return;
+    }
+
+    // 3B. Intent: Basis Pengetahuan (Fakta, Rule, Keputusan)
+    if (/\b(knowledge\s*base|basis\s*pengetahuan|berapa\s*(fakta|rule|aturan|keputusan)|daftar\s*(fakta|rule|keputusan)|kaidah\s*produksi)\b/.test(query)) {
+      appendBotChat(`
+        <strong>Basis Pengetahuan Sistem Pakar (<code>knowledge_base.py</code>):</strong>
+        <div style="background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:8px;padding:10px;margin-top:6px;font-size:12px;line-height:1.6;">
+          • <strong>20 Fakta / Gejala (<code>F01–F20</code>):</strong> Kelistrikan (kabel terkelupas, nyetrum, percikan motor), Mekanis &amp; Keselamatan (pisau retak, baut longgar, tuas macet), hingga Profil Peminjam &amp; Lingkungan (pemula, tanpa APD, area basah).<br>
+          • <strong>15 Kaidah Produksi (<code>R01–R15</code>):</strong> Aturan <code>IF–THEN</code> berbobot <code>CF_pakar</code> (0,75–0,99).<br>
+          • <strong>5 Keputusan (<code>K01–K05</code>):</strong> Layak Pakai Optimal (<code>K01</code>), Degradasi Mekanis (<code>K02</code>), Bahaya Fatal/Kritis (<code>K03</code>), Ketidaksesuaian Peminjam (<code>K04</code>), Rekomendasi Alternatif (<code>K05</code>).
+        </div>
+      `);
+      return;
+    }
+
+    // 3C. Intent: State-Space, Fungsi Heuristik, & 3 Zona Triase Risiko AI
+    if (/\b(zona|triase|heuristik|state\s*space|red\s*flag|skor\s*risiko)\b/.test(query)) {
+      appendBotChat(`
+        <strong>State-Space, Fungsi Heuristik h(S) &amp; 3 Zona Triase AI:</strong>
+        <div style="font-size:11.5px;color:var(--text-secondary);margin-top:4px;line-height:1.5;">
+          • <strong>State-Space:</strong> <code>S0</code> (Auth) &rarr; <code>S1</code> (Pilih Barang) &rarr; <code>S2/S3</code> (Kumpul Fakta) &rarr; <code>G</code> (Keputusan).<br>
+          • <strong>Rumus Heuristik:</strong> <code>h(S) = min(100, &Sigma; w_i &times; CF(F_i))</code> (plus <em>Red-Flag Override</em> &ge; 80 untuk bahaya fatal).
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;margin-top:8px;">
           <div style="background:var(--green-bg);border:1px solid var(--green-border);padding:8px 10px;border-radius:6px;font-size:11.5px;">
             <strong style="color:var(--green-text);">ZONA HIJAU (Skor h(S) &lt; 30)</strong><br>
-            Alat dalam kondisi prima dan terawat. Langsung disetujui untuk dipinjam.
+            Barang aman dan layak pakai. Langsung disetujui untuk dipinjam.
           </div>
           <div style="background:var(--yellow-bg);border:1px solid var(--yellow-border);padding:8px 10px;border-radius:6px;font-size:11.5px;">
             <strong style="color:var(--yellow-text);">ZONA KUNING (Skor 30 &ndash; 69)</strong><br>
-            Peminjaman bersyarat. Wajib menggunakan APD (kacamata / sarung tangan).
+            Peminjaman bersyarat. Perlu pengawasan atau penggunaan pelindung/APD.
           </div>
           <div style="background:var(--red-bg);border:1px solid var(--red-border);padding:8px 10px;border-radius:6px;font-size:11.5px;">
             <strong style="color:var(--red-text);">ZONA MERAH (Skor &ge; 70)</strong><br>
-            Bahaya fatal terdeteksi (kabel sobek/bodi nyetrum). Ditolak &amp; terkunci otomatis.
+            Bahaya fatal/kerusakan serius terdeteksi. Ditolak &amp; dikunci karantina servis.
           </div>
+        </div>
+      `);
+      return;
+    }
+
+    // 3D. Intent: Metode AI / Input-Proses-Output / Cara Kerja
+    if (/\b(metode(\s+ai)?|input\s*proses|cara\s*kerja\s*(ai|sistem)|algoritma)\b/.test(query)) {
+      appendBotChat(`
+        <strong>Alur Kerja AI (Input &rarr; Proses &rarr; Output):</strong>
+        <div style="background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:8px;padding:10px;margin-top:6px;font-size:12px;line-height:1.6;">
+          1. <strong>Input:</strong> Fakta kondisi fisik barang &amp; profil peminjam (<code>F01–F20</code>) yang diisi di Langkah 3 Smart Wizard atau Chat.<br>
+          2. <strong>Proses:</strong> <strong>State-Space</strong> mengarahkan alur &rarr; <strong>Forward Chaining + CF</strong> mencocokkan 15 rule &rarr; <strong>Heuristic Risk</strong> menghitung skor bahaya <code>h(S)</code>.<br>
+          3. <strong>Output:</strong> Keputusan kelayakan (<code>K01–K05</code>), persentase keyakinan, saran keselamatan, serta aksi otomatis (izin pinjam atau <em>Lockout</em> servis).
+        </div>
+      `);
+      return;
+    }
+
+    // 3E. Intent: Umum Sistem Pakar & Peran Pakar (Teknisi / Ahli K3)
+    if (/\b(sistem\s*pakar\w*|pakar\w*|expert\s*system|teknisi|ahli\s*k3|menggantikan\s*(siapa|peran))\b/.test(query)) {
+      appendBotChat(`
+        <strong>Bagian Sistem Pakar di GudangLingling AI:</strong>
+        <div style="background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:8px;padding:10px;margin-top:6px;font-size:12px;line-height:1.6;">
+          • <strong>Letak Sistem Pakar:</strong> Ada pada fitur <strong>Triase Kelayakan &amp; Keselamatan Barang</strong> (Smart Wizard Langkah 3 &amp; modul <code>engine/</code>), bukan pada CRUD/WA-nya.<br>
+          • <strong>Peran Pakar yang Digantikan:</strong> Teknisi / Ahli K3 yang menilai apakah barang aman dipinjam, perlu syarat, atau harus dikarantina servis.<br>
+          • <strong>4 Modul Inti:</strong> <em>Knowledge Base</em> (20 fakta, 15 rule), <em>Forward Chaining + CF</em>, <em>Heuristic Risk h(S)</em>, dan <em>State-Space</em>.
+        </div>
+        <div class="chat-chip-row">
+          <button class="chat-quick-btn" onclick="sendSuggestedQuery('Metode AI apa yang dipakai?')"><span>⚙️</span><span>Metode &amp; Alur</span></button>
+          <button class="chat-quick-btn" onclick="sendSuggestedQuery('Rumus Forward Chaining dan CF?')"><span>🧮</span><span>Rumus CF</span></button>
+          <button class="chat-quick-btn" onclick="sendSuggestedQuery('Ada berapa fakta dan rule?')"><span>📚</span><span>Basis Pengetahuan</span></button>
+          <button class="chat-quick-btn" onclick="sendSuggestedQuery('Jelaskan 3 Zona Triase Risiko AI')"><span>🛡️</span><span>Zona Triase</span></button>
         </div>
       `);
       return;
