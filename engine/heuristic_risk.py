@@ -23,23 +23,48 @@ from engine.knowledge_base import FACTS, Fact
 
 class HeuristicRiskEngine:
     @staticmethod
-    def _build_green_advice(item: Dict[str, Any] = None) -> str:
-        """Menghasilkan catatan keselamatan/pemakaian yang sesuai jenis barang."""
+    def _detect_item_kind(item: Dict[str, Any] = None) -> str:
+        """Mengelompokkan jenis barang menjadi 'household', 'electric', atau 'general'."""
         if not item:
-            return "Barang dalam kondisi baik dan layak pakai. Mohon digunakan sesuai fungsi dan dijaga dengan baik."
-
+            return "general"
         cat = (item.get("category") or "").strip()
         name = (item.get("name") or "").lower()
         power = int(item.get("power_watts") or 0)
 
+        household_re = r"\b(gelas|piring|mangkuk|cangkir|botol|panci|termos|kaca|keramik|kursi|meja|tenda|terpal|taplak)\b"
+        if power == 0 and (cat == "Rumah Tangga & Acara" or re.search(household_re, name)):
+            return "household"
+
         electric_cats = {"Alat Listrik & Mesin", "Pertukangan Listrik", "Peralatan Air & Cuci"}
         if power > 0 or cat in electric_cats or re.search(r"\b(bor|gerinda|las|solder|listrik|mesin|pompa|jet cleaner|steam)\b", name):
-            return "Alat dalam kondisi baik dan aman. Pastikan kabel aman serta matikan alat setelah selesai digunakan."
+            return "electric"
 
-        if cat == "Rumah Tangga & Acara" or re.search(r"\b(gelas|piring|mangkuk|cangkir|botol|panci|termos|kaca|keramik|kursi|meja|tenda|terpal|taplak)\b", name):
-            return "Barang dalam kondisi baik dan bersih. Mohon digunakan dengan hati-hati agar tidak rusak atau pecah."
+        return "general"
 
-        return "Barang dalam kondisi baik dan layak pakai. Mohon digunakan sesuai fungsi dan dijaga kebersihannya."
+    @staticmethod
+    def _build_contextual_advice(zone: str, item: Dict[str, Any] = None) -> str:
+        """Menghasilkan catatan keselamatan/pemakaian yang natural sesuai zona dan jenis barang."""
+        kind = HeuristicRiskEngine._detect_item_kind(item)
+        if zone == "GREEN":
+            if kind == "electric":
+                return "Alat dalam kondisi baik dan aman. Pastikan kabel aman serta matikan alat setelah selesai digunakan."
+            if kind == "household":
+                return "Barang dalam kondisi baik dan bersih. Mohon digunakan dengan hati-hati agar tidak rusak atau pecah."
+            return "Barang dalam kondisi baik dan layak pakai. Mohon digunakan sesuai fungsi dan dijaga kebersihannya."
+
+        if zone == "YELLOW":
+            if kind == "electric":
+                return "Alat masih layak pakai dengan catatan ringan. Harap gunakan secara hati-hati dan utamakan keselamatan (gunakan pelindung bila perlu)."
+            if kind == "household":
+                return "Barang masih layak pakai dengan sedikit catatan kondisi. Mohon ditangani ekstra hati-hati agar tidak bertambah rusak."
+            return "Barang layak pakai dengan catatan ringan. Harap gunakan secara hati-hati sesuai peruntukannya."
+
+        # RED zone
+        if kind == "electric":
+            return "Tidak layak pakai! Ditemukan kerusakan serius atau risiko kelistrikan. Peminjaman ditolak dan barang dikarantina untuk perbaikan."
+        if kind == "household":
+            return "Tidak layak pakai! Kondisi barang rusak atau retak sehingga berisiko pecah/melukai. Peminjaman ditolak untuk perbaikan atau penggantian."
+        return "Tidak layak pakai! Ditemukan kerusakan serius pada barang. Peminjaman ditolak sementara hingga selesai diperbaiki."
 
     @staticmethod
     def evaluate_risk(facts_input: Dict[str, float], item: Dict[str, Any] = None) -> Dict[str, Any]:
@@ -90,19 +115,18 @@ class HeuristicRiskEngine:
             zone_label = "ZONA HIJAU (Aman / Layak Pakai Optimal)"
             badge_color = "#10B981"  # Emerald Green
             action_code = "APPROVE"
-            safety_advice = HeuristicRiskEngine._build_green_advice(item)
         elif final_score < 70.0:
             zone = "YELLOW"
             zone_label = "ZONA KUNING (Peminjaman Bersyarat & Perlu APD)"
             badge_color = "#F59E0B"  # Amber Yellow
             action_code = "CONDITIONAL"
-            safety_advice = "Peminjaman diizinkan dengan pengawasan atau syarat wajib memakai APD lengkap (kacamata pengaman / sarung tangan tebal)."
         else:
             zone = "RED"
             zone_label = "ZONA MERAH (Ditolak / Lockout Karantina)"
             badge_color = "#EF4444"  # Rose Red
             action_code = "REJECT_LOCKOUT"
-            safety_advice = "BAHAYA FATAL! Alat ini terdeteksi memiliki kerusakan serius/bahaya kelistrikan. Peminjaman DITOLAK demi mencegah kecelakaan kerja."
+
+        safety_advice = HeuristicRiskEngine._build_contextual_advice(zone, item)
 
         return {
             "heuristic_score": final_score,

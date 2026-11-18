@@ -154,7 +154,7 @@ class StateSpaceSession:
         inference_out = ForwardChainingEngine.infer(self.facts_collected)
 
         # 2. Eksekusi Heuristic Risk Triaging h(S)
-        heuristic_out = HeuristicRiskEngine.evaluate_risk(self.facts_collected)
+        heuristic_out = HeuristicRiskEngine.evaluate_risk(self.facts_collected, item=self.selected_item)
 
         # 3. Rakit Format Output Keputusan Terpadu
         primary_dec = inference_out.get("primary_decision")
@@ -211,29 +211,28 @@ class StateSpaceSession:
 
     def _build_whatsapp_message(self, decision: Dict[str, Any], heuristic: Dict[str, Any]) -> str:
         """Membuat teks template konfirmasi WhatsApp ramah pengguna & berkekuatan bukti."""
-        item_name = self.selected_item.get("name", "Alat") if self.selected_item else "Alat"
-        zone_label = heuristic.get("zone_label", "Triase Selesai")
-        h_score = heuristic.get("heuristic_score", 0.0)
-        advice = heuristic.get("safety_advice", "")
+        item_name = self.selected_item.get("name", "Barang") if self.selected_item else "Barang"
+        advice = heuristic.get("safety_advice", "Barang dalam kondisi baik dan layak pakai.")
         zone = heuristic.get("zone", "GREEN")
-
-        msg = f"*--- NOTIFIKASI GUDANGLINGLING AI ---*\n"
-        msg += f"Halo *{self.borrower_name}*,\n"
-        msg += f"Pengecekan teknis dan triase keamanan untuk peminjaman *{item_name}* telah selesai diproses oleh Sistem Pakar GudangLingling AI.\n\n"
-        msg += f"*Status Triase Keselamatan:*\n"
-        msg += f"- Keputusan: {decision.get('name') if decision else 'Selesai'}\n"
-        msg += f"- Zonasi: {zone_label}\n"
-        msg += f"- Skor Risiko h(S): {h_score}/100\n"
-
-        if decision:
-            msg += f"- Keyakinan AI (Certainty Factor): {decision.get('percentage', 0)}%\n\n"
+        borrower = (self.borrower_name or "Warga").strip()
+        display_borrower = " ".join(w[:1].upper() + w[1:] for w in borrower.split())
 
         if zone == "RED":
-            msg += f"*Pemberitahuan:* Peminjaman TIDAK DAPAT disetujui karena alat berisiko korsleting atau kerusakan fatal dan saat ini dikarantina untuk perbaikan.\n"
-        else:
-            msg += f"*Instruksi Keselamatan:* {advice}\n"
-            msg += f"*Durasi Pinjam:* {self.expected_days} Hari\n"
-            msg += f"Mohon rawat alat dengan baik dan kembalikan tepat waktu demi kenyamanan bersama.\n"
+            return (
+                f"Halo *{display_borrower}*,\n\n"
+                f"Mohon maaf, pengajuan peminjaman *{item_name}* belum dapat diproses karena kondisi barang sedang bermasalah:\n\n"
+                f"- *Status Kondisi:* Tidak Layak Pakai (Perlu Servis)\n"
+                f"- *Catatan:* {advice}\n\n"
+                "Barang sementara dikarantina demi keamanan bersama. Terima kasih!"
+            )
 
-        msg += f"\n_Sistem Cerdas GudangLingling — Pengembang: Liana Sry Astuti (ITEBA)_"
-        return msg
+        wa_status = "Baik & Layak Pakai (Aman)" if zone == "GREEN" else "Layak Pakai (Perlu Perhatian)"
+        return (
+            f"Halo *{display_borrower}*,\n\n"
+            "Peminjaman barang di *GudangLingling* sudah tercatat dengan detail berikut:\n\n"
+            f"- *Barang:* {item_name}\n"
+            f"- *Durasi:* {self.expected_days} hari\n"
+            f"- *Status Kondisi:* {wa_status}\n"
+            f"- *Catatan:* {advice}\n\n"
+            "Mohon dijaga baik-baik dan dikembalikan tepat waktu ya. Terima kasih!"
+        )

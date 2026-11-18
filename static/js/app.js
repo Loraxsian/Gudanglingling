@@ -2177,9 +2177,15 @@ function renderMessage() {
         statusTag = `<span class="reminder-time-tag safe">🟢 Sisa ${daysLeft} Hari</span>`;
       }
 
-      const waMsg = encodeURIComponent(
-        `Halo ${r.borrower_name}, sekadar mengingatkan alat *${r.item_name}* yang dipinjam selama ${r.borrow_days} hari ya. Kalau sudah selesai dipakai, kabari ya. Terima kasih!`
-      );
+      let rawWaMsg = '';
+      if (daysLeft < 0) {
+        rawWaMsg = `Halo *${r.borrower_name}*,\n\nSekadar mengingatkan peminjaman *${r.item_name}* (${r.borrow_days} hari) sudah melewati batas waktu ${Math.abs(daysLeft)} hari. Jika sudah selesai dipakai, mohon segera dikembalikan ke GudangLingling ya. Terima kasih!`;
+      } else if (daysLeft === 0) {
+        rawWaMsg = `Halo *${r.borrower_name}*,\n\nSekadar mengingatkan peminjaman *${r.item_name}* (${r.borrow_days} hari) jatuh tempo hari ini. Jika sudah selesai digunakan, bisa dikembalikan hari ini ya. Terima kasih!`;
+      } else {
+        rawWaMsg = `Halo *${r.borrower_name}*,\n\nSekadar mengingatkan peminjaman *${r.item_name}* untuk durasi ${r.borrow_days} hari (sisa ${daysLeft} hari). Kalau sudah selesai dipakai, silakan kabari untuk pengembalian ya. Terima kasih!`;
+      }
+      const waMsg = encodeURIComponent(rawWaMsg);
       const cleanPhone = (r.borrower_phone || '').replace(/[^0-9]/g, '');
       const waUrl = cleanPhone ? `https://wa.me/${cleanPhone}?text=${waMsg}` : `https://wa.me/?text=${waMsg}`;
 

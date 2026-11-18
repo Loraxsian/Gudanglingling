@@ -835,13 +835,13 @@ class GudangLinglingRequestHandler(BaseHTTPRequestHandler):
 
             advice_text = heuristic_res.get("safety_advice", "Barang dalam kondisi baik dan layak pakai.")
 
-            wa_msg = f"Halo *{display_borrower}* 👋\n\n"
+            wa_msg = f"Halo *{display_borrower}*,\n\n"
             wa_msg += "Peminjaman barang di *GudangLingling* sudah tercatat dengan detail berikut:\n\n"
-            wa_msg += f"• *Barang:* {item['name']}\n"
-            wa_msg += f"• *Durasi:* {borrow_days} hari\n"
-            wa_msg += f"• *Status Kondisi:* {wa_status}\n"
-            wa_msg += f"• *Catatan:* {advice_text}\n\n"
-            wa_msg += "Mohon dijaga baik-baik dan dikembalikan tepat waktu ya. Terima kasih! 🙏"
+            wa_msg += f"- *Barang:* {item['name']}\n"
+            wa_msg += f"- *Durasi:* {borrow_days} hari\n"
+            wa_msg += f"- *Status Kondisi:* {wa_status}\n"
+            wa_msg += f"- *Catatan:* {advice_text}\n\n"
+            wa_msg += "Mohon dijaga baik-baik dan dikembalikan tepat waktu ya. Terima kasih!"
 
             encoded_wa = quote(wa_msg)
             wa_url = f"https://wa.me/{clean_phone}?text={encoded_wa}" if clean_phone else f"https://wa.me/?text={encoded_wa}"
