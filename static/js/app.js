@@ -14,6 +14,7 @@ const state = {
   reminders: [],
   emailLogs: [],
   history: [],
+  contacts: [],
   selectedItem: null,
   activeCategory: 'ALL',
   activeKeyword: '',
@@ -35,13 +36,42 @@ const btnMinimizeChat   = document.getElementById('btn-minimize-chat');
 const btnRestartChat    = document.getElementById('btn-restart-chat');
 const modalReturnCheck  = document.getElementById('modal-return-check');
 
+function getAuthStorage(key) {
+  return sessionStorage.getItem(key) || localStorage.getItem(key) || '';
+}
+
+function saveAuthStorage(sessId, tok, opName, dName, remember) {
+  sessionStorage.setItem('gl_auth_session', sessId || '');
+  if (tok) sessionStorage.setItem('gl_auth_token', tok);
+  sessionStorage.setItem('gl_operator_name', opName || 'lingling');
+  sessionStorage.setItem('gl_display_name', dName || 'Kak Ling');
+  if (remember) {
+    localStorage.setItem('gl_auth_session', sessId || '');
+    if (tok) localStorage.setItem('gl_auth_token', tok);
+    localStorage.setItem('gl_operator_name', opName || 'lingling');
+    localStorage.setItem('gl_display_name', dName || 'Kak Ling');
+  } else {
+    localStorage.removeItem('gl_auth_session');
+    localStorage.removeItem('gl_auth_token');
+    localStorage.removeItem('gl_operator_name');
+    localStorage.removeItem('gl_display_name');
+  }
+}
+
+function clearAuthStorage() {
+  ['gl_auth_session', 'gl_auth_token', 'gl_operator_name', 'gl_display_name'].forEach(k => {
+    sessionStorage.removeItem(k);
+    localStorage.removeItem(k);
+  });
+}
+
 // Attach persistent auth_token automatically to same-origin /api/ requests
 if (typeof window !== 'undefined' && typeof window.fetch === 'function') {
   const _rawFetch = window.fetch.bind(window);
   window.fetch = async function(input, init = {}) {
     const url = typeof input === 'string' ? input : (input && input.url) || '';
     if (url.startsWith('/api/')) {
-      const token = sessionStorage.getItem('gl_auth_token') || state.authToken || '';
+      const token = getAuthStorage('gl_auth_token') || state.authToken || '';
       if (token) {
         init = Object.assign({}, init);
         init.headers = Object.assign({}, init.headers || {}, { 'Authorization': `Bearer ${token}` });
@@ -49,8 +79,7 @@ if (typeof window !== 'undefined' && typeof window.fetch === 'function') {
     }
     const res = await _rawFetch(input, init);
     if (res.status === 401 && url.startsWith('/api/') && !url.startsWith('/api/auth')) {
-      sessionStorage.removeItem('gl_auth_session');
-      sessionStorage.removeItem('gl_auth_token');
+      clearAuthStorage();
       state.isAuthenticated = false;
       state.authToken = '';
       const gate = document.getElementById('login-gate');
@@ -67,18 +96,26 @@ document.addEventListener('DOMContentLoaded', () => {
   setupDraggableBubble();
   setupChatDrawer();
 
-  const savedSession = sessionStorage.getItem('gl_auth_session');
-  const savedToken = sessionStorage.getItem('gl_auth_token');
-  const savedOperator = sessionStorage.getItem('gl_operator_name') || 'lingling';
-  const savedDisplay = sessionStorage.getItem('gl_display_name') || 'Kak Ling';
+  // Sembunyikan tombol Sinkron Kontak HP jika browser tidak mendukung Contact Picker API
+  const hasContactPicker = typeof navigator !== 'undefined' && 'contacts' in navigator && typeof window !== 'undefined' && 'ContactsManager' in window;
+  if (!hasContactPicker) {
+    ['btn-sync-contact', 'wizard-sync-contact-btn'].forEach(id => {
+      const btn = document.getElementById(id);
+      if (btn) btn.style.display = 'none';
+    });
+  }
+
+  const savedSession = getAuthStorage('gl_auth_session');
+  const savedToken = getAuthStorage('gl_auth_token');
+  const savedOperator = getAuthStorage('gl_operator_name') || 'lingling';
+  const savedDisplay = getAuthStorage('gl_display_name') || 'Kak Ling';
   if (savedSession && savedToken) {
     state.sessionId = savedSession;
     state.authToken = savedToken;
     state.isAuthenticated = true;
     enterOperationalSession(savedOperator, savedDisplay);
   } else {
-    sessionStorage.removeItem('gl_auth_session');
-    sessionStorage.removeItem('gl_auth_token');
+    clearAuthStorage();
     checkDefaultPasswordNote();
     const userInput = document.getElementById('login-operator-input');
     if (userInput) userInput.focus();
@@ -222,13 +259,12 @@ async function handleLandingLogin(e) {
       }
 
       const dName = data.display_name || data.operator_name || 'Kak Ling';
+      const rememberEl = document.getElementById('login-remember-check');
+      const remember = rememberEl ? rememberEl.checked : true;
       state.sessionId = data.session_id;
       state.authToken = data.auth_token || '';
       state.isAuthenticated = true;
-      sessionStorage.setItem('gl_auth_session', data.session_id);
-      if (data.auth_token) sessionStorage.setItem('gl_auth_token', data.auth_token);
-      sessionStorage.setItem('gl_operator_name', data.operator_name || username);
-      sessionStorage.setItem('gl_display_name', dName);
+      saveAuthStorage(data.session_id, data.auth_token || '', data.operator_name || username, dName, remember);
       enterOperationalSession(data.operator_name || username, dName);
       showToast(`Halo ${dName}, selamat datang kembali!`, 'success');
       return;
@@ -339,13 +375,12 @@ async function handleChangeDefaultPassword(e) {
     const sessId = (pendingAuthSession && pendingAuthSession.sessionId) || '';
     const authTok = (pendingAuthSession && pendingAuthSession.authToken) || state.authToken || '';
     const dName = (pendingAuthSession && pendingAuthSession.displayName) || 'Kak Ling';
+    const rememberEl = document.getElementById('login-remember-check');
+    const remember = rememberEl ? rememberEl.checked : true;
     state.sessionId = sessId;
     state.authToken = authTok;
     state.isAuthenticated = true;
-    sessionStorage.setItem('gl_auth_session', sessId);
-    if (authTok) sessionStorage.setItem('gl_auth_token', authTok);
-    sessionStorage.setItem('gl_operator_name', username);
-    sessionStorage.setItem('gl_display_name', dName);
+    saveAuthStorage(sessId, authTok, username, dName, remember);
     pendingAuthSession = null;
 
     enterOperationalSession(username, dName);
@@ -594,14 +629,11 @@ async function handleSaveProfile(e) {
 function handleLogout() {
   const dd = document.getElementById('profile-dropdown');
   if (dd) dd.classList.remove('open');
-  const tok = sessionStorage.getItem('gl_auth_token') || state.authToken || '';
+  const tok = getAuthStorage('gl_auth_token') || state.authToken || '';
   if (tok) {
     fetch('/api/logout', { method: 'POST' }).catch(() => {});
   }
-  sessionStorage.removeItem('gl_auth_session');
-  sessionStorage.removeItem('gl_auth_token');
-  sessionStorage.removeItem('gl_operator_name');
-  sessionStorage.removeItem('gl_display_name');
+  clearAuthStorage();
   state.sessionId = null;
   state.authToken = '';
   state.isAuthenticated = false;
@@ -917,9 +949,19 @@ function openChatWithItem(itemId) {
 // 3. DATA LOADERS
 // ============================================================
 async function loadAllData() {
-  await Promise.all([loadItems(), loadReminders(), loadEmailLogs(), loadHistory()]);
+  await Promise.all([loadItems(), loadReminders(), loadEmailLogs(), loadHistory(), loadContacts()]);
   renderBeranda();
   renderMessage();
+}
+
+async function loadContacts() {
+  try {
+    const res = await fetch('/api/contacts');
+    const data = await res.json();
+    state.contacts = data.contacts || [];
+  } catch (err) {
+    console.error('Error load contacts:', err);
+  }
 }
 
 async function loadHistory() {
@@ -935,6 +977,13 @@ async function loadHistory() {
 function lookupBorrowerPhoneFromHistory(name) {
   const target = (name || '').trim().toLowerCase();
   if (!target || target === 'warga / peminjam') return null;
+  for (const c of (state.contacts || [])) {
+    const cName = (c.name || '').trim().toLowerCase();
+    const cPhone = (c.phone || '').trim();
+    if (cPhone && (cName === target || cName.includes(target) || target.includes(cName))) {
+      return { phone: cPhone, matchedName: c.name };
+    }
+  }
   const sources = [...(state.history || []), ...(state.reminders || [])];
   for (const rec of sources) {
     const rName = (rec.borrower_name || '').trim().toLowerCase();
@@ -1204,6 +1253,10 @@ function openCardQuickView(itemId) {
         <span class="status-pulse-dot ${badgeDotColor}" style="position:static;flex-shrink:0;"></span>
         <span>${activityText}</span>
       </div>
+      <div style="display:flex;gap:8px;margin-top:4px;">
+        ${item.status === 'AVAILABLE' ? `<button type="button" class="btn-act btn-primary-action btn-sm" style="flex:1;" onclick="event.stopPropagation(); closeCardQuickView(); openBorrowWizard(${item.id});">Pinjam</button>` : ''}
+        <button type="button" class="btn-act btn-subtle-action btn-sm" style="flex:1;" onclick="event.stopPropagation(); closeCardQuickView(); openEditItemModal(${item.id});">✏️ Edit</button>
+      </div>
       <div class="card-quickview-hint">Ketuk sekali lagi di mana saja untuk menutup</div>
     </div>
   `;
@@ -1242,6 +1295,98 @@ function showAppConfirm({ title = 'Konfirmasi', message = 'Apakah Anda yakin?', 
   };
 
   overlay.classList.add('open');
+}
+
+function openContactsModal() {
+  const modal = document.getElementById('modal-contacts');
+  if (modal) modal.classList.add('open');
+  renderContactsList();
+  loadContacts().then(() => renderContactsList());
+}
+
+function closeContactsModal() {
+  const modal = document.getElementById('modal-contacts');
+  if (modal) modal.classList.remove('open');
+}
+
+function renderContactsList() {
+  const body = document.getElementById('contacts-list-body');
+  if (!body) return;
+  const list = state.contacts || [];
+  if (!list.length) {
+    body.innerHTML = `<div style="text-align:center;padding:18px;color:var(--text-muted);font-size:12px;">Belum ada kontak tersimpan. Tambahkan nama dan nomor WhatsApp warga di atas.</div>`;
+    return;
+  }
+  body.innerHTML = list.map(c => {
+    const cleanDigits = (c.phone || '').replace(/[^0-9]/g, '');
+    const waDigits = cleanDigits.startsWith('0') ? '62' + cleanDigits.slice(1) : cleanDigits;
+    const waHref = waDigits ? `https://wa.me/${waDigits}` : '#';
+    return `
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:9px 11px;border-radius:10px;border:1px solid var(--border-subtle);background:var(--bg-app);margin-bottom:8px;">
+        <div style="min-width:0;flex:1;">
+          <div style="font-size:13px;font-weight:700;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(c.name)}</div>
+          <div style="font-size:11.5px;color:var(--text-secondary);">${esc(c.phone)}</div>
+        </div>
+        <div style="display:flex;gap:6px;flex-shrink:0;">
+          <a href="${waHref}" target="_blank" class="btn-act btn-whatsapp-action btn-sm" style="width:auto;padding:5px 10px;text-decoration:none;">WA</a>
+          <button type="button" class="btn-act btn-danger-action btn-sm" style="width:auto;padding:5px 10px;" onclick="handleDeleteContact(${c.id})">Hapus</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function handleSaveContact(e) {
+  e.preventDefault();
+  const nameEl = document.getElementById('contact-name-input');
+  const phoneEl = document.getElementById('contact-phone-input');
+  const btn = document.getElementById('contact-save-btn');
+  const name = (nameEl ? nameEl.value : '').trim();
+  const phone = (phoneEl ? phoneEl.value : '').trim();
+  if (!name || phone.replace(/\D/g, '').length < 8) {
+    showToast('Masukkan nama dan nomor WhatsApp yang valid (minimal 8 digit).', 'warn');
+    return;
+  }
+  if (btn) { btn.disabled = true; btn.textContent = 'Menyimpan...'; }
+  try {
+    const res = await fetch('/api/contacts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, phone })
+    });
+    const data = await res.json();
+    if (res.ok && data.success) {
+      state.contacts = data.contacts || [];
+      if (nameEl) nameEl.value = '';
+      if (phoneEl) phoneEl.value = '';
+      renderContactsList();
+      showToast(`Kontak ${name} berhasil disimpan!`, 'success');
+    } else {
+      showToast(data.error || 'Gagal menyimpan kontak.', 'warn');
+    }
+  } catch (err) {
+    showToast('Gagal menghubungi server.', 'warn');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '+ Simpan Kontak'; }
+  }
+}
+
+async function handleDeleteContact(contactId) {
+  try {
+    const res = await fetch('/api/contacts/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contact_id: contactId })
+    });
+    const data = await res.json();
+    if (res.ok && data.success) {
+      state.contacts = data.contacts || [];
+      renderContactsList();
+      showToast('Kontak dihapus.', 'info');
+    }
+  } catch (err) {
+    showToast('Gagal menghapus kontak.', 'warn');
+  }
 }
 
 function closeUserLogsModal() {
@@ -1576,6 +1721,23 @@ function getMaxBorrowDays(item) {
   return 7;
 }
 
+let _wizardAutoFilledPhone = '';
+
+function autoFillWizardPhone(rawName) {
+  const phoneEl = document.getElementById('wizard-borrower-phone');
+  if (!phoneEl) return;
+  const curPhone = phoneEl.value.trim();
+  if (curPhone && curPhone !== _wizardAutoFilledPhone) return;
+  const match = lookupBorrowerPhoneFromHistory(rawName);
+  if (match && match.phone) {
+    phoneEl.value = match.phone;
+    _wizardAutoFilledPhone = match.phone;
+  } else if (curPhone === _wizardAutoFilledPhone) {
+    phoneEl.value = '';
+    _wizardAutoFilledPhone = '';
+  }
+}
+
 function openBorrowWizard(itemId) {
   const item = state.items.find(i => i.id === itemId);
   if (!item) {
@@ -1607,6 +1769,7 @@ function openBorrowWizard(itemId) {
   if (metaEl) metaEl.textContent = formatItemMeta(item);
 
   // Reset form inputs
+  _wizardAutoFilledPhone = '';
   document.getElementById('wizard-borrower-name').value = '';
   document.getElementById('wizard-borrower-phone').value = '';
   document.getElementById('wizard-borrow-days').value = '1';
@@ -1995,12 +2158,19 @@ function previewAddItemPhoto(e) {
   reader.readAsDataURL(file);
 }
 
+function inferDangerLevelFromCategory(category, powerWatts = 0) {
+  const cat = normalizeCategory(category);
+  if (cat === 'Alat Listrik & Mesin' || parseInt(powerWatts || 0, 10) > 0) return 'TINGGI';
+  if (cat === 'Tangga & Angkut') return 'SEDANG';
+  return 'RENDAH';
+}
+
 async function handleCreateItem(e) {
   e.preventDefault();
   const name = document.getElementById('add-item-name').value.trim();
   const category = document.getElementById('add-item-category').value;
   const power = parseInt(document.getElementById('add-item-power').value || '0', 10);
-  const danger = document.getElementById('add-item-danger').value;
+  const danger = inferDangerLevelFromCategory(category, power);
   const desc = document.getElementById('add-item-desc').value.trim();
   const fileInput = document.getElementById('add-item-file');
 
@@ -2556,6 +2726,60 @@ function getDefaultCategoryPhoto(category) {
   return '/img/toolset.svg';
 }
 
+function levenshteinDistance(a, b) {
+  const s = (a || '').toLowerCase();
+  const t = (b || '').toLowerCase();
+  const m = s.length;
+  const n = t.length;
+  if (!m) return n;
+  if (!n) return m;
+  const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+  for (let i = 0; i <= m; i++) dp[i][0] = i;
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      const cost = s[i - 1] === t[j - 1] ? 0 : 1;
+      dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + cost);
+    }
+  }
+  return dp[m][n];
+}
+
+function findSimilarTool(typedName, items) {
+  const qWords = (typedName || '').toLowerCase().split(/\s+/).filter(w => w.length >= 3);
+  if (!qWords.length || !Array.isArray(items)) return null;
+  let best = null;
+  let bestDist = 3;
+  for (const it of items) {
+    const tWords = (it.name || '').toLowerCase().split(/\s+/).filter(w => w.length >= 3);
+    for (const qw of qWords) {
+      for (const tw of tWords) {
+        const d = levenshteinDistance(qw, tw);
+        const maxAllowed = Math.max(qw.length, tw.length) <= 4 ? 1 : 2;
+        if (d > 0 && d <= maxAllowed && d < bestDist) {
+          bestDist = d;
+          best = it;
+        }
+      }
+    }
+  }
+  return best;
+}
+
+function formatInferenceTraceHtml(data) {
+  if (!data) return '';
+  const rules = Array.isArray(data.fired_rules) && data.fired_rules.length
+    ? data.fired_rules.map(r => `${r.rule_code} &rarr; ${r.conclusion_code}`).join(', ')
+    : `R14 &rarr; ${data.decision_code || 'K01'}`;
+  const cfPct = typeof data.cf_percentage === 'number' ? data.cf_percentage : 95;
+  const hScore = typeof data.heuristic_score === 'number' ? data.heuristic_score : 0;
+  return `
+    <div style="font-size:11px;color:var(--text-secondary);background:var(--bg-app);border:1px dashed var(--border-subtle);border-radius:8px;padding:7px 9px;margin-top:6px;line-height:1.45;">
+      <strong>Jejak Sistem Pakar:</strong> Rule <code>${rules}</code> &bull; CF <strong>${cfPct}%</strong> &bull; Heuristik <code>h(S)=${hScore}</code>
+    </div>
+  `;
+}
+
 // ============================================================
 // NATURAL LANGUAGE ENTITY EXTRACTOR (EXPRESS BORROWING)
 // ============================================================
@@ -2756,6 +2980,19 @@ function parseNaturalBorrowQuery(text) {
     }
 
     if (hasBorrow) {
+      const typoMatch = findSimilarTool(formattedToolName, state.items || []);
+      if (typoMatch) {
+        return {
+          type: 'BORROW_TYPO_SUGGEST',
+          suggestedTool: typoMatch,
+          newToolName: formattedToolName,
+          name: formattedBorrower,
+          phone,
+          days,
+          powerWatts,
+          category: guessToolCategory(formattedToolName)
+        };
+      }
       return {
         type: 'BORROW_NEW_TOOL',
         newToolName: formattedToolName,
@@ -2958,6 +3195,7 @@ async function executeExpressBorrow(toolId, borrowerName, borrowerPhone, borrowD
         <div style="font-size:12.5px;color:var(--text-primary);margin:6px 0;line-height:1.4;">
           <strong>${esc(data.item.name)}</strong> resmi tercatat dipinjam oleh <strong>${esc(borrowerName)}</strong> selama <strong>${borrowDays} hari</strong>.
         </div>
+        ${formatInferenceTraceHtml(data)}
         <div style="display:flex;flex-direction:column;gap:6px;margin-top:8px;">
           <a href="${data.whatsapp_url}" target="_blank" onclick="recordDigitalReceipt(${data.record_id}, '${esc(data.item.name)}', '${esc(borrowerName)}', ${borrowDays})" class="btn-act btn-whatsapp-action btn-sm" style="text-decoration:none;display:flex;justify-content:center;align-items:center;gap:6px;">
             💬 Kirim Bukti ke WhatsApp
@@ -3278,6 +3516,31 @@ async function processUserChatMessage(rawText, photoBase64 = null) {
         return;
       }
 
+      // CASE B0: Typo suggestion — confirm similar existing item before offering new tool creation
+      if (borrowIntent.type === 'BORROW_TYPO_SUGGEST') {
+        const sug = borrowIntent.suggestedTool;
+        const newTool = borrowIntent.newToolName;
+        const name = borrowIntent.name;
+        const phone = borrowIntent.phone;
+        const days = borrowIntent.days;
+        appendBotChat(`
+          <div style="background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:10px;padding:10px;margin-top:4px;">
+            <div style="font-size:12.5px;color:var(--text-primary);line-height:1.5;">
+              Barang <strong>"${esc(newTool)}"</strong> tidak ada di rak. Apakah maksud Anda <strong>${esc(sug.name)}</strong>?
+            </div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
+              <button class="btn-act btn-primary-action btn-sm" style="flex:1;" onclick="openBorrowWizardWithData(${sug.id}, '${escJsArg(name)}', '${escJsArg(phone)}', ${days})">
+                Ya, Pinjam ${esc(sug.name)}
+              </button>
+              <button class="btn-act btn-subtle-action btn-sm" style="flex:1;" onclick="registerToolOnly('${escJsArg(newTool)}', '${escJsArg(borrowIntent.category)}', '', ${parseInt(borrowIntent.powerWatts || 0, 10)}, this)">
+                + Daftarkan "${esc(newTool)}" Baru
+              </button>
+            </div>
+          </div>
+        `);
+        return;
+      }
+
       // CASE B: Tool is NOT YET in warehouse — Direct 1-Click Registration & Lending!
       if (borrowIntent.type === 'BORROW_NEW_TOOL') {
         const newTool = borrowIntent.newToolName;
@@ -3486,6 +3749,9 @@ async function processUserChatMessage(rawText, photoBase64 = null) {
       } else {
         const listHtml = borrowed.map(it => {
           const photo = it.last_photo_url || getDefaultCategoryPhoto(it.category);
+          const recBtn = it.active_record_id
+            ? `<button class="chat-tool-btn" onclick="closeChatDrawer(); openReturnModalByRecordId(${it.active_record_id});">Cek Kembali</button>`
+            : '';
           return `
             <div class="chat-tool-card">
               <img class="chat-tool-thumb" src="${photo}" alt="${esc(it.name)}" onerror="this.onerror=null; this.src='/img/bor.svg';">
@@ -3493,6 +3759,7 @@ async function processUserChatMessage(rawText, photoBase64 = null) {
                 <div class="chat-tool-name">${esc(it.name)}</div>
                 <div class="chat-tool-sub">Peminjam: <strong>${esc(it.active_borrower || 'Warga')}</strong> &bull; ${it.active_borrow_days || 1} hari</div>
               </div>
+              ${recBtn}
             </div>
           `;
         }).join('');
@@ -3524,6 +3791,7 @@ async function processUserChatMessage(rawText, photoBase64 = null) {
               <div class="chat-tool-name">${esc(it.name)}</div>
               <div class="chat-tool-sub" style="color:var(--red-text);">🔒 Lockout / Perlu Servis</div>
             </div>
+            <button class="chat-tool-btn" onclick="unlockTool(${it.id})">Buka Kunci</button>
           </div>
         `).join('');
         appendBotChat(`
@@ -3751,6 +4019,20 @@ async function processUserChatMessage(rawText, photoBase64 = null) {
         Halo! Ada yang bisa saya bantu terkait peralatan gudang warga hari ini?<br>
         Kamu bisa langsung ketik nama perkakas yang ingin dicari (misal: <em>"bor"</em>, <em>"gerinda"</em>, atau <em>"tangga"</em>), atau klik salah satu topik di bawah.
       `);
+      return;
+    }
+
+    // 6B. Intent: Small Talk / Ucapan Terima Kasih / Respon Santai
+    if (/\b(terima\s*kasih|makasih|makasi|thanks|trims)\b/.test(query)) {
+      appendBotChat('Sama-sama! Senang bisa membantu. Kalau ada barang yang ingin dipinjam atau dicek lagi, tinggal ketik saja ya.');
+      return;
+    }
+    if (/^(oke|ok|okei|sip|siap|mantap|baik|noted|iya|ya)$/.test(query)) {
+      appendBotChat('Siap! Kabari saja kalau ada keperluan peminjaman atau pengecekan barang lainnya.');
+      return;
+    }
+    if (/\b(lagi apa|apa kabar|kabarmu|siapa kamu|kamu siapa)\b/.test(query)) {
+      appendBotChat('Kabar baik! Saya Asisten GudangLingling AI, siap membantu cek stok barang, catat peminjaman, hingga memeriksa kelayakan keselamatan alat.');
       return;
     }
 

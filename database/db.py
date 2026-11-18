@@ -138,6 +138,16 @@ def init_db():
         );
         """)
 
+        # 7. Tabel Daftar Kontak Warga
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS contacts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            phone TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        """)
+
         conn.commit()
 
 
@@ -563,3 +573,47 @@ def revoke_session_token(token: str) -> None:
     with get_connection() as conn:
         conn.execute("DELETE FROM user_sessions WHERE token = ?", (token,))
         conn.commit()
+
+
+def get_all_contacts() -> List[Dict[str, Any]]:
+    """Mengambil seluruh daftar kontak warga yang tersimpan."""
+    init_db()
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT id, name, phone, created_at FROM contacts ORDER BY name ASC, id DESC"
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def save_contact(name: str, phone: str) -> int:
+    """Menyimpan atau memperbarui kontak warga berdasarkan nama."""
+    init_db()
+    clean_name = (name or "").strip()
+    clean_phone = (phone or "").strip()
+    with get_connection() as conn:
+        existing = conn.execute(
+            "SELECT id FROM contacts WHERE LOWER(name) = LOWER(?)",
+            (clean_name,),
+        ).fetchone()
+        if existing:
+            conn.execute(
+                "UPDATE contacts SET name = ?, phone = ? WHERE id = ?",
+                (clean_name, clean_phone, existing["id"]),
+            )
+            conn.commit()
+            return existing["id"]
+        cur = conn.execute(
+            "INSERT INTO contacts (name, phone) VALUES (?, ?)",
+            (clean_name, clean_phone),
+        )
+        conn.commit()
+        return cur.lastrowid
+
+
+def delete_contact(contact_id: int) -> bool:
+    """Menghapus kontak warga berdasarkan ID."""
+    init_db()
+    with get_connection() as conn:
+        cur = conn.execute("DELETE FROM contacts WHERE id = ?", (contact_id,))
+        conn.commit()
+        return cur.rowcount > 0

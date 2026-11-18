@@ -53,7 +53,10 @@ from database.db import (
     get_user_activity_logs,
     create_session_token,
     verify_session_token,
-    revoke_session_token
+    revoke_session_token,
+    get_all_contacts,
+    save_contact,
+    delete_contact
 )
 from database.seed import seed_database  # Hanya panggil init_db() — tidak insert data
 from engine.state_space import StateSpaceSession, CF_OPTIONS
@@ -323,6 +326,11 @@ class GudangLinglingRequestHandler(BaseHTTPRequestHandler):
             self._send_json({"logs": logs})
             return
 
+        # 4C. API: Daftar Kontak Warga
+        if path == "/api/contacts":
+            self._send_json({"contacts": get_all_contacts()})
+            return
+
         # 5. API: Detail Peminjaman Tertentu /api/borrow-record/<id>
         if path.startswith("/api/borrow-record/"):
             parts = path.strip("/").split("/")
@@ -416,6 +424,8 @@ class GudangLinglingRequestHandler(BaseHTTPRequestHandler):
             "/api/items/create",
             "/api/items/update",
             "/api/items/delete",
+            "/api/contacts",
+            "/api/contacts/delete",
         }
         if path in protected_post_paths:
             if not self._require_auth():
@@ -853,8 +863,10 @@ class GudangLinglingRequestHandler(BaseHTTPRequestHandler):
                 "zone": zone,
                 "zone_label": heuristic_res.get("zone_label", zone),
                 "heuristic_score": h_score,
+                "decision_code": decision_code,
                 "decision_name": decision_name,
                 "cf_percentage": cf_percent,
+                "fired_rules": inference_res.get("fired_rules", []),
                 "safety_advice": heuristic_res.get("safety_advice", ""),
                 "record_status": record_status,
                 "whatsapp_url": wa_url,
@@ -963,6 +975,26 @@ class GudangLinglingRequestHandler(BaseHTTPRequestHandler):
                 item_label = item["name"] if item else f"Alat #{item_id}"
                 log_user_activity(actor, "HAPUS_BARANG", f"Menghapus barang: {item_label}", client_ip)
             self._send_json({"success": success, "message": "Alat berhasil dihapus dari inventaris."})
+            return
+
+        # 11. API: Simpan & Hapus Daftar Kontak Warga
+        if path == "/api/contacts":
+            name = (body.get("name") or "").strip()
+            phone = (body.get("phone") or "").strip()
+            if not name or not phone:
+                self._send_json({"error": "Nama dan nomor WhatsApp wajib diisi."}, 400)
+                return
+            contact_id = save_contact(name, phone)
+            self._send_json({"success": True, "contact_id": contact_id, "contacts": get_all_contacts()})
+            return
+
+        if path == "/api/contacts/delete":
+            contact_id = body.get("contact_id")
+            if not contact_id:
+                self._send_json({"error": "contact_id diperlukan"}, 400)
+                return
+            ok = delete_contact(int(contact_id))
+            self._send_json({"success": ok, "contacts": get_all_contacts()})
             return
 
         self.send_error(404, "Endpoint POST tidak ditemukan")
